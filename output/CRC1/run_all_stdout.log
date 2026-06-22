@@ -1,0 +1,41 @@
+[2026-06-15 11:02:43] Running 01_preprocess_st.R
+null device 
+          1 
+null device 
+          1 
+[2026-06-15 11:03:20] Running 02_morphology_adjusted_cluster.R
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 4457
+Number of edges: 179024
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.7903
+Number of communities: 20
+Elapsed time: 0 seconds
+null device 
+          1 
+null device 
+          1 
+null device 
+          1 
+[2026-06-15 11:05:41] Running 03_run_infercnv.R
+            used   (Mb) gc trigger   (Mb)  max used   (Mb)
+Ncells   8710912  465.3   14226178  759.8  11487724  613.6
+Vcells 226834216 1730.7  323218544 2466.0 226835709 1730.7
+[2026-06-15 11:06:37] Running 04_score_cnv.R
+null device 
+          1 
+null device 
+          1 
+null device 
+          1 
+[2026-06-15 11:07:29] Running 05_define_boundary.R
+null device 
+          1 
+[2026-06-15 11:08:59] Running 06_prepare_single_cell_reference.R
+[2026-06-15 11:09:12] Running 07_spatial_deconvolution.R
+[2026-06-15 12:35:31] Running 08_spatial_reconstruction.R
+[2026-06-15 12:35:48] Running 09_diff_and_enrichment.R
+[2026-06-15 12:37:07] Running 10_plot_results.R
+[2026-06-15 12:37:45] R workflow completed.

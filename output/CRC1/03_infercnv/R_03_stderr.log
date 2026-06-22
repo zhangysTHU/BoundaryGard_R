@@ -1,0 +1,58 @@
+Warning message:
+package 'infercnv' was built under R version 4.3.2 
+2026-06-14 10:43:15 | loading clustered Seurat object
+2026-06-14 10:43:21 | loaded object: 4457 spots; assay=Spatial
+2026-06-14 10:43:21 | extracting dense count matrix for inferCNV
+Warning message:
+In asMethod(object) :
+  sparse->dense coercion: allocating vector of size 1.2 GiB
+2026-06-14 10:43:23 | matrix ready: 36601 genes x 4457 spots
+2026-06-14 10:43:23 | reference cluster selected: 16
+2026-06-14 10:43:23 | creating inferCNV object
+INFO [2026-06-14 10:43:23] Parsing gene order file: D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/resources/gencode_v38_gene_pos.txt
+INFO [2026-06-14 10:43:23] Parsing cell annotations file: D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/intermediate/InferCNV/CellAnnotation.txt
+INFO [2026-06-14 10:43:23] ::order_reduce:Start.
+INFO [2026-06-14 10:43:24] .order_reduce(): expr and order match.
+INFO [2026-06-14 10:43:25] ::process_data:order_reduce:Reduction from positional data, new dimensions (r,c) = 36601,4457 Total=50961100 Min=0 Max=13393.
+INFO [2026-06-14 10:43:26] num genes removed taking into account provided gene ordering list: 3954 = 10.8029835250403% removed.
+INFO [2026-06-14 10:43:26] -filtering out cells < 100 or > Inf, removing 0.0897465 % of cells
+WARN [2026-06-14 10:43:28] Please use "options(scipen = 100)" before running infercnv if you are using the analysis_mode="subclusters" option or you may encounter an error while the hclust is being generated.
+INFO [2026-06-14 10:43:35] validating infercnv_obj
+2026-06-14 10:43:35 | inferCNV object created
+2026-06-14 10:43:35 | starting infercnv::run; output dir=D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/output/03_infercnv/output_Spatial
+INFO [2026-06-14 10:43:35] ::process_data:Start
+INFO [2026-06-14 10:43:35] Checking for saved results.
+INFO [2026-06-14 10:43:35] Trying to reload from step 4
+INFO [2026-06-14 10:43:36] Using backup from step 4
+INFO [2026-06-14 10:43:36] 
+
+	STEP 1: incoming data
+
+INFO [2026-06-14 10:43:36] 
+
+	STEP 02: Removing lowly expressed genes
+
+INFO [2026-06-14 10:43:36] 
+
+	STEP 03: normalization by sequencing depth
+
+INFO [2026-06-14 10:43:36] 
+
+	STEP 04: log transformation of data
+
+INFO [2026-06-14 10:43:36] 
+
+	STEP 07: computing tumor subclusters via random_trees
+
+INFO [2026-06-14 10:43:36] define_signif_tumor_subclusters(p_val=0.1
+INFO [2026-06-14 10:43:36] ::subtract_ref_expr_from_obs:Start inv_log=TRUE, use_bounds=TRUE
+INFO [2026-06-14 10:43:36] subtracting mean(normal) per gene per cell across all data
+INFO [2026-06-14 10:43:41] -subtracting expr per gene, use_bounds=TRUE
+INFO [2026-06-14 10:43:45] -mirroring for hspike
+INFO [2026-06-14 10:43:45] ::subtract_ref_expr_from_obs:Start inv_log=TRUE, use_bounds=TRUE
+INFO [2026-06-14 10:43:45] subtracting mean(normal) per gene per cell across all data
+INFO [2026-06-14 10:43:48] -subtracting expr per gene, use_bounds=TRUE
+INFO [2026-06-14 10:43:49] define_signif_tumor_subclusters(), tumor: all_observations
+unique tumor clade name: all_observations.1
+INFO [2026-06-14 11:08:18] random trees, using 30 parallel threads
+WARN [2026-06-14 11:08:18] not enough cores available, setting to num avail cores: 16

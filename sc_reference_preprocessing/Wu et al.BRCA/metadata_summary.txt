@@ -1,0 +1,69 @@
+============================================================
+Wu et al. 2021 (GSE176078) scRNA-seq Data Summary
+============================================================
+
+Total cells: 100,064
+Total genes: 29,733
+Total patients: 26
+RDS file size: 797 MB (837 MB on disk)
+
+Subtype Distribution (by patient):
+  ER+: 11 patients
+  TNBC: 10 patients
+  HER2+: 5 patients
+
+Subtype Distribution (by cell):
+  TNBC: 42,512 cells (42.5%)
+  ER+: 38,241 cells (38.2%)
+  HER2+: 19,311 cells (19.3%)
+
+Major Cell Types:
+  T-cells: 35,214 cells (35.2%)
+  Cancer Epithelial: 24,489 cells (24.5%)
+  Myeloid: 9,675 cells (9.7%)
+  Endothelial: 7,605 cells (7.6%)
+  CAFs: 6,573 cells (6.6%)
+  PVL: 5,423 cells (5.4%)
+  Normal Epithelial: 4,355 cells (4.4%)
+  Plasmablasts: 3,524 cells (3.5%)
+  B-cells: 3,206 cells (3.2%)
+
+Patients:
+  CID3586: HER2+
+  CID3838: HER2+
+  CID3921: HER2+
+  CID3941: ER+
+  CID3946: TNBC
+  CID3948: ER+
+  CID3963: TNBC
+  CID4040: ER+
+  CID4066: HER2+
+  CID4067: ER+
+  CID4290A: ER+
+  CID4398: ER+
+  CID44041: TNBC
+  CID4461: ER+
+  CID4463: ER+
+  CID4465: TNBC
+  CID4471: ER+
+  CID4495: TNBC
+  CID44971: TNBC
+  CID44991: TNBC
+  CID4513: TNBC
+  CID4515: TNBC
+  CID45171: HER2+
+  CID4523: TNBC
+  CID4530N: ER+
+  CID4535: ER+
+
+Metadata columns: orig.ident, nCount_RNA, nFeature_RNA, percent.mito,
+  subtype, celltype_subset, celltype_minor, celltype_major
+
+Paper: Wu et al. Nat Genet 2021. DOI: 10.1038/s41588-021-00911-1
+GEO: GSE176078
+Broad SCP: SCP1039
+
+Files in this directory:
+  - wu2021_brca_seurat.rds (Seurat object, NormalizeData applied)
+  - metadata.csv (original metadata)
+  - metadata_summary.txt (this file)

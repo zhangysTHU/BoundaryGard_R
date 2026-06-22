@@ -1,0 +1,30 @@
+Warning message:
+package 'Matrix' was built under R version 4.3.3 
+Normalizing layer: counts
+Performing log-normalization
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+Warning message:
+In asMethod(object) :
+  sparse->dense coercion: allocating vector of size 1.2 GiB
+nMal_0: T, Endothelial
+nMal_1: Tumor, Epithelial
+nMal_10: Tumor, Epithelial, Myeloid
+nMal_11: Tumor, Epithelial
+nMal_12: Myeloid, Endothelial
+nMal_13: Tumor, Epithelial
+nMal_14: T, Myeloid, Fibroblast, Endothelial
+nMal_15: Tumor, Epithelial
+nMal_16: T, Myeloid, B/Plasma
+nMal_17: Myeloid, Endothelial
+nMal_18: Fibroblast, Endothelial
+nMal_19: T, B/Plasma
+nMal_2: T, Myeloid, B/Plasma, Fibroblast, Endothelial
+nMal_3: Fibroblast, Endothelial
+nMal_4: Tumor, Epithelial
+nMal_5: Myeloid, B/Plasma, Fibroblast
+nMal_6: Myeloid, Fibroblast
+nMal_7: Fibroblast, Endothelial
+nMal_8: Tumor, Epithelial
+nMal_9: Tumor, B/Plasma, Epithelial

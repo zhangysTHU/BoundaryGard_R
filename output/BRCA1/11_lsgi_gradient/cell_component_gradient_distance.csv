@@ -1,0 +1,82 @@
+"grid.1","grid.2","distance"
+"B-cells","B-cells",24.3848035176326
+"B-cells","CAFs",16.7398846229905
+"B-cells","Cancer Epithelial",16.6195954958403
+"B-cells","Endothelial",37.0404613701828
+"B-cells","Myeloid",12.1256833430281
+"B-cells","Normal Epithelial",70.7513891091697
+"B-cells","PVL",61.6492336879546
+"B-cells","Plasmablasts",39.119984031974
+"B-cells","T-cells",11.4910952233998
+"CAFs","B-cells",45.5205637339116
+"CAFs","CAFs",20.5551521995379
+"CAFs","Cancer Epithelial",5.75598021789774
+"CAFs","Endothelial",35.3420781382408
+"CAFs","Myeloid",18.9542131093239
+"CAFs","Normal Epithelial",76.9925231355058
+"CAFs","PVL",58.4420308219589
+"CAFs","Plasmablasts",36.1692777858196
+"CAFs","T-cells",30.328033844919
+"Cancer Epithelial","B-cells",53.114315690298
+"Cancer Epithelial","CAFs",13.0365010881085
+"Cancer Epithelial","Cancer Epithelial",20.3140771480682
+"Cancer Epithelial","Endothelial",39.9066442305247
+"Cancer Epithelial","Myeloid",21.1325826087435
+"Cancer Epithelial","Normal Epithelial",82.8196767833455
+"Cancer Epithelial","PVL",63.4436950590261
+"Cancer Epithelial","Plasmablasts",46.2609845248689
+"Cancer Epithelial","T-cells",27.9481309168842
+"Endothelial","B-cells",39.7888061054567
+"Endothelial","CAFs",6.2721356325374
+"Endothelial","Cancer Epithelial",9.60839537540615
+"Endothelial","Endothelial",28.6367421896321
+"Endothelial","Myeloid",17.2714390249177
+"Endothelial","Normal Epithelial",66.7255390543944
+"Endothelial","PVL",19.7523765916712
+"Endothelial","Plasmablasts",20.3572241555738
+"Endothelial","T-cells",24.4502197141804
+"Myeloid","B-cells",36.717556460787
+"Myeloid","CAFs",15.126301543521
+"Myeloid","Cancer Epithelial",12.1250112177526
+"Myeloid","Endothelial",36.1799798586975
+"Myeloid","Myeloid",21.9396743935102
+"Myeloid","Normal Epithelial",76.5299767731967
+"Myeloid","PVL",61.9110501568938
+"Myeloid","Plasmablasts",45.6423078618542
+"Myeloid","T-cells",27.0068641292026
+"Normal Epithelial","B-cells",29.2560253880211
+"Normal Epithelial","CAFs",13.7407324279067
+"Normal Epithelial","Cancer Epithelial",6.54410095328962
+"Normal Epithelial","Endothelial",31.1073541290072
+"Normal Epithelial","Myeloid",13.9173204107006
+"Normal Epithelial","Normal Epithelial",50.9723644047662
+"Normal Epithelial","PVL",35.8879387988481
+"Normal Epithelial","Plasmablasts",32.8564157716576
+"Normal Epithelial","T-cells",23.8188121769487
+"PVL","B-cells",45.1636626121057
+"PVL","CAFs",4.37827068345569
+"PVL","Cancer Epithelial",10.9382495503863
+"PVL","Endothelial",2.78987729186867
+"PVL","Myeloid",23.2950517837198
+"PVL","Normal Epithelial",69.730902857842
+"PVL","PVL",34.6859258668282
+"PVL","Plasmablasts",24.8965408624832
+"PVL","T-cells",21.9984008884446
+"Plasmablasts","B-cells",43.186527799882
+"Plasmablasts","CAFs",8.57970483694299
+"Plasmablasts","Cancer Epithelial",10.1930241251037
+"Plasmablasts","Endothelial",18.0940299586894
+"Plasmablasts","Myeloid",20.6207105172795
+"Plasmablasts","Normal Epithelial",72.8736977541966
+"Plasmablasts","PVL",33.664396192176
+"Plasmablasts","Plasmablasts",27.6990710482679
+"Plasmablasts","T-cells",27.6971079168469
+"T-cells","B-cells",51.3017257439704
+"T-cells","CAFs",29.0802721322017
+"T-cells","Cancer Epithelial",14.9043164757273
+"T-cells","Endothelial",45.4087413063917
+"T-cells","Myeloid",27.0408038179712
+"T-cells","Normal Epithelial",98.1195072343203
+"T-cells","PVL",67.198195817797
+"T-cells","Plasmablasts",51.4155743398207
+"T-cells","T-cells",21.9469624476305

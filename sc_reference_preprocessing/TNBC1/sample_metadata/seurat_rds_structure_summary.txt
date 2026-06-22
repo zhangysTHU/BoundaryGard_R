@@ -1,0 +1,6 @@
+RDS path: D:/协和2025春/others/BRCA-scRNAseq/repeat_2024_yang/sample_aggr_combined.rds
+Object class: Seurat
+R version: R version 4.3.1 (2023-06-16 ucrt)
+Seurat installed: FALSE
+SeuratObject installed: FALSE
+

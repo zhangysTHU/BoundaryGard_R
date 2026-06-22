@@ -1,0 +1,214 @@
+Warning: Default search for "data" layer in "Spatial" assay yielded no results; utilizing "counts" layer instead.
+Warning messages:
+1: The `size` argument of `element_line()` is deprecated as of ggplot2 3.4.0.
+ℹ Please use the `linewidth` argument instead.
+ℹ The deprecated feature was likely used in the cowplot package.
+  Please report the issue at <https://github.com/wilkelab/cowplot/issues>. 
+2: The `size` argument of `element_rect()` is deprecated as of ggplot2 3.4.0.
+ℹ Please use the `linewidth` argument instead.
+ℹ The deprecated feature was likely used in the cowplot package.
+  Please report the issue at <https://github.com/wilkelab/cowplot/issues>. 
+Warning message:
+package 'Matrix' was built under R version 4.3.3 
+'"C:\Users\�����\AppData\Local\Temp\tmpqy8wlq58.bat"' is not recognized as an internal or external command,
+operable program or batch file.
+Could Not Find C:\Users\�����\AppData\Local\Temp\tmpqy8wlq58.bat
+'"C:\Users\�����\AppData\Local\Temp\tmp6ckdcmsk.bat"' is not recognized as an internal or external command,
+operable program or batch file.
+Could Not Find C:\Users\�����\AppData\Local\Temp\tmp6ckdcmsk.bat
+'"C:\Users\�����\AppData\Local\Temp\tmpy5f035gk.bat"' is not recognized as an internal or external command,
+operable program or batch file.
+Could Not Find C:\Users\�����\AppData\Local\Temp\tmpy5f035gk.bat
+Warning message:
+In asMethod(object) :
+  sparse->dense coercion: allocating vector of size 1.2 GiB
+Normalizing layer: counts
+Performing log-normalization
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+Finding variable features for layer counts
+Calculating gene variances
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+Calculating feature variances of standardized and clipped values
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+Centering and scaling data matrix
+  |                                                                              |                                                                      |   0%  |                                                                              |===================================                                   |  50%  |                                                                              |======================================================================| 100%
+Computing nearest neighbor graph
+Computing SNN
+Warning: The default method for RunUMAP has changed from calling Python UMAP via reticulate to the R-native UWOT using the cosine metric
+To use Python UMAP via reticulate, set umap.method to 'umap-learn' and metric to 'correlation'
+This message will be shown once per session
+11:04:51 UMAP embedding parameters a = 0.9922 b = 1.112
+11:04:51 Read 4457 rows and found 50 numeric columns
+11:04:51 Using Annoy for neighbor search, n_neighbors = 30
+11:04:51 Building Annoy index with metric = cosine, n_trees = 50
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+11:04:51 Writing NN index file to temp file C:\Users\张羽飒\AppData\Local\Temp\RtmpSipkcz\file2dc87bcc1350
+11:04:51 Searching Annoy index using 1 thread, search_k = 3000
+11:04:52 Annoy recall = 100%
+11:04:52 Commencing smooth kNN distance calibration using 1 thread with target n_neighbors = 30
+11:04:53 Initializing from normalized Laplacian + noise (using RSpectra)
+11:04:53 Commencing optimization for 500 epochs, with 197808 positive edges
+11:04:53 Using rng type: pcg
+Using method 'umap'
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+11:05:05 Optimization finished
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+Warning: Number of colors does not match number of groups; adjusting.
+Scale for fill is already present.
+Adding another scale for fill, which will replace the existing scale.
+Warning messages:
+1: The `size` argument of `element_line()` is deprecated as of ggplot2 3.4.0.
+ℹ Please use the `linewidth` argument instead.
+ℹ The deprecated feature was likely used in the cowplot package.
+  Please report the issue at <https://github.com/wilkelab/cowplot/issues>. 
+2: The `size` argument of `element_rect()` is deprecated as of ggplot2 3.4.0.
+ℹ Please use the `linewidth` argument instead.
+ℹ The deprecated feature was likely used in the cowplot package.
+  Please report the issue at <https://github.com/wilkelab/cowplot/issues>. 
+Warning: Default search for "data" layer in "Spatial" assay yielded no results; utilizing "counts" layer instead.
+Warning message:
+package 'infercnv' was built under R version 4.3.2 
+2026-06-15 11:06:01 | loading clustered Seurat object
+2026-06-15 11:06:06 | loaded object: 4457 spots; assay=Spatial
+2026-06-15 11:06:06 | reference cluster selected: 16
+2026-06-15 11:06:06 | loading inferCNV checkpoint: D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/output/03_infercnv/output_Spatial/04_logtransformedHMMi6.infercnv_obj
+2026-06-15 11:06:09 | checkpoint loaded: 10155 genes x 4453 cells
+2026-06-15 11:06:09 | starting infercnv::run; output dir=D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/output/03_infercnv/output_Spatial; threads=2; analysis_mode=subclusters; partition=qnorm; HMM=TRUE; plots=off
+INFO [2026-06-15 11:06:09] ::process_data:Start
+INFO [2026-06-15 11:06:09] Checking for saved results.
+INFO [2026-06-15 11:06:09] Trying to reload from step 22
+INFO [2026-06-15 11:06:11] Using backup from step 22
+INFO [2026-06-15 11:06:11] Trying to reload from step 20
+INFO [2026-06-15 11:06:13] Using backup HMM from step 20
+INFO [2026-06-15 11:06:13] Trying to reload from step 17
+INFO [2026-06-15 11:06:13] Trying to reload from step 15
+INFO [2026-06-15 11:06:16] 
+
+	STEP 1: incoming data
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 02: Removing lowly expressed genes
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 03: normalization by sequencing depth
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 04: log transformation of data
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 08: removing average of reference data (before smoothing)
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 09: apply max centered expression threshold: 3
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 10: Smoothing data per cell by chromosome
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 11: re-centering data across chromosome after smoothing
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 12: removing average of reference data (after smoothing)
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 14: invert log2(FC) to FC
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 15: computing tumor subclusters via qnorm
+
+INFO [2026-06-15 11:06:16] 
+
+	STEP 22: Denoising
+
+2026-06-15 11:06:26 | infercnv::run completed
+2026-06-15 11:06:26 | saving inferCNV object
+2026-06-15 11:06:36 | saved D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/intermediate/03_infercnv_obj.rds.gz
+2026-06-15 11:06:36 | building CNV calls from 17_HMM_predHMMi6.qnorm.hmm_mode-subclusters.cell_groupings and 17_HMM_predHMMi6.qnorm.hmm_mode-subclusters.pred_cnv_genes.dat
+2026-06-15 11:06:37 | wrote D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/intermediate/03_cnv_calls.tsv
+Warning: Number of colors does not match number of groups; adjusting.
+Scale for fill is already present.
+Adding another scale for fill, which will replace the existing scale.
+Warning messages:
+1: The `size` argument of `element_line()` is deprecated as of ggplot2 3.4.0.
+ℹ Please use the `linewidth` argument instead.
+ℹ The deprecated feature was likely used in the cowplot package.
+  Please report the issue at <https://github.com/wilkelab/cowplot/issues>. 
+2: The `size` argument of `element_rect()` is deprecated as of ggplot2 3.4.0.
+ℹ Please use the `linewidth` argument instead.
+ℹ The deprecated feature was likely used in the cowplot package.
+  Please report the issue at <https://github.com/wilkelab/cowplot/issues>. 
+Warning: Number of colors does not match number of groups; adjusting.
+Scale for fill is already present.
+Adding another scale for fill, which will replace the existing scale.
+Warning message:
+package 'Matrix' was built under R version 4.3.3 
+Normalizing layer: counts
+Performing log-normalization
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+Warning message:
+In asMethod(object) :
+  sparse->dense coercion: allocating vector of size 1.2 GiB
+nMal_0: T, Endothelial
+nMal_1: Tumor, Epithelial
+nMal_10: Tumor, Epithelial, Myeloid
+nMal_11: Tumor, Epithelial
+nMal_12: Myeloid, Endothelial
+nMal_13: Tumor, Epithelial
+nMal_14: T, Myeloid, Fibroblast, Endothelial
+nMal_15: Tumor, Epithelial
+nMal_16: T, Myeloid, B/Plasma
+nMal_17: Myeloid, Endothelial
+nMal_18: Fibroblast, Endothelial
+nMal_19: T, B/Plasma
+nMal_2: T, Myeloid, B/Plasma, Fibroblast, Endothelial
+nMal_3: Fibroblast, Endothelial
+nMal_4: Tumor, Epithelial
+nMal_5: Myeloid, B/Plasma, Fibroblast
+nMal_6: Myeloid, Fibroblast
+nMal_7: Fibroblast, Endothelial
+nMal_8: Tumor, Epithelial
+nMal_9: Tumor, B/Plasma, Epithelial
+Warning message:
+No spots found for params$recon_locations=Bdy; writing empty reconstruction outputs. 
+
+
+Warning messages:
+1: package 'clusterProfiler' was built under R version 4.3.3 
+2: package 'AnnotationDbi' was built under R version 4.3.2 
+3: package 'S4Vectors' was built under R version 4.3.2 
+Normalizing layer: counts
+Performing log-normalization
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+Warning message:
+In asMethod(object) :
+  sparse->dense coercion: allocating vector of size 1.2 GiB
+Warning message:
+package 'jpeg' was built under R version 4.3.3 
+Scale for y is already present.
+Adding another scale for y, which will replace the existing scale.

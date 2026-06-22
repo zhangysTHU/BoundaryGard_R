@@ -1,0 +1,7 @@
+"column","class","n_unique","n_na"
+"orig.ident","character",8,0
+"nCount_RNA","numeric",19365,0
+"nFeature_RNA","integer",6762,0
+"stim","character",8,0
+"integrated_snn_res.0.6","factor",26,0
+"seurat_clusters","factor",26,0

@@ -1,0 +1,26 @@
+Cottrazm + LSGI cell-component gradient analysis
+================================================
+
+Sample: BRCA1 
+Matched spots: 3798 
+Cell components: B-cells, CAFs, Cancer Epithelial, Endothelial, Myeloid, Normal Epithelial, Plasmablasts, PVL, T-cells 
+Grid clustering backend: anticlust::balanced_clustering 
+n.grids.scale: 10 
+n.cells.per.meta: 50 
+R-squared threshold: 0.3 
+Minimum arrows per component: 3 
+Selected gradient arrows: 544 
+
+Arrow length scale: 1.4 
+Arrow linewidth: 1 
+Arrow head cm: 0.2 
+
+Arrow closed: TRUE 
+Reused LSGI result: FALSE 
+
+Outputs:
+- intermediate/11_lsgi_cell_component_result.rds.gz
+- output/11_lsgi_gradient/grid_info.csv
+- output/11_lsgi_gradient/cell_component_gradient_arrows.csv
+- output/11_lsgi_gradient/BRCA1_BoundaryDefine_LSGIGradient.pdf
+- output/11_lsgi_gradient/BRCA1_BoundaryDefine_HE_LSGIGradient.pdf

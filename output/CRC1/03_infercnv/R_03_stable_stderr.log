@@ -1,0 +1,372 @@
+Warning message:
+package 'infercnv' was built under R version 4.3.2 
+2026-06-14 23:40:07 | loading clustered Seurat object
+2026-06-14 23:40:13 | loaded object: 4457 spots; assay=Spatial
+2026-06-14 23:40:13 | reference cluster selected: 16
+2026-06-14 23:40:13 | loading inferCNV checkpoint: D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/output/03_infercnv/output_Spatial/04_logtransformedHMMi6.infercnv_obj
+2026-06-14 23:40:15 | checkpoint loaded: 10155 genes x 4453 cells
+2026-06-14 23:40:16 | starting infercnv::run; output dir=D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/output/03_infercnv/output_Spatial; threads=2; analysis_mode=subclusters; partition=qnorm; HMM=TRUE; plots=off
+INFO [2026-06-14 23:40:16] ::process_data:Start
+INFO [2026-06-14 23:40:16] Checking for saved results.
+INFO [2026-06-14 23:40:16] Trying to reload from step 4
+INFO [2026-06-14 23:40:17] Using backup from step 4
+INFO [2026-06-14 23:40:17] 
+
+	STEP 1: incoming data
+
+INFO [2026-06-14 23:40:17] 
+
+	STEP 02: Removing lowly expressed genes
+
+INFO [2026-06-14 23:40:17] 
+
+	STEP 03: normalization by sequencing depth
+
+INFO [2026-06-14 23:40:17] 
+
+	STEP 04: log transformation of data
+
+INFO [2026-06-14 23:40:17] 
+
+	STEP 08: removing average of reference data (before smoothing)
+
+INFO [2026-06-14 23:40:17] ::subtract_ref_expr_from_obs:Start inv_log=FALSE, use_bounds=TRUE
+INFO [2026-06-14 23:40:17] subtracting mean(normal) per gene per cell across all data
+INFO [2026-06-14 23:40:22] -subtracting expr per gene, use_bounds=TRUE
+INFO [2026-06-14 23:40:27] -mirroring for hspike
+INFO [2026-06-14 23:40:27] ::subtract_ref_expr_from_obs:Start inv_log=FALSE, use_bounds=TRUE
+INFO [2026-06-14 23:40:27] subtracting mean(normal) per gene per cell across all data
+INFO [2026-06-14 23:40:31] -subtracting expr per gene, use_bounds=TRUE
+INFO [2026-06-14 23:40:49] 
+
+	STEP 09: apply max centered expression threshold: 3
+
+INFO [2026-06-14 23:40:49] ::process_data:setting max centered expr, threshold set to: +/-:  3
+INFO [2026-06-14 23:40:49] -mirroring for hspike
+INFO [2026-06-14 23:40:49] ::process_data:setting max centered expr, threshold set to: +/-:  3
+INFO [2026-06-14 23:41:07] 
+
+	STEP 10: Smoothing data per cell by chromosome
+
+INFO [2026-06-14 23:41:07] smooth_by_chromosome: chr: chr1
+INFO [2026-06-14 23:41:12] smooth_by_chromosome: chr: chr2
+INFO [2026-06-14 23:41:15] smooth_by_chromosome: chr: chr3
+INFO [2026-06-14 23:41:20] smooth_by_chromosome: chr: chr4
+INFO [2026-06-14 23:41:23] smooth_by_chromosome: chr: chr5
+INFO [2026-06-14 23:41:26] smooth_by_chromosome: chr: chr6
+INFO [2026-06-14 23:41:30] smooth_by_chromosome: chr: chr7
+INFO [2026-06-14 23:41:34] smooth_by_chromosome: chr: chr8
+INFO [2026-06-14 23:41:37] smooth_by_chromosome: chr: chr9
+INFO [2026-06-14 23:41:41] smooth_by_chromosome: chr: chr10
+INFO [2026-06-14 23:41:44] smooth_by_chromosome: chr: chr11
+INFO [2026-06-14 23:41:48] smooth_by_chromosome: chr: chr12
+INFO [2026-06-14 23:41:52] smooth_by_chromosome: chr: chr13
+INFO [2026-06-14 23:41:55] smooth_by_chromosome: chr: chr14
+INFO [2026-06-14 23:41:59] smooth_by_chromosome: chr: chr15
+INFO [2026-06-14 23:42:03] smooth_by_chromosome: chr: chr16
+INFO [2026-06-14 23:42:06] smooth_by_chromosome: chr: chr17
+INFO [2026-06-14 23:42:10] smooth_by_chromosome: chr: chr18
+INFO [2026-06-14 23:42:13] smooth_by_chromosome: chr: chr19
+INFO [2026-06-14 23:42:17] smooth_by_chromosome: chr: chr20
+INFO [2026-06-14 23:42:20] smooth_by_chromosome: chr: chr21
+INFO [2026-06-14 23:42:23] smooth_by_chromosome: chr: chr22
+INFO [2026-06-14 23:42:27] -mirroring for hspike
+INFO [2026-06-14 23:42:27] smooth_by_chromosome: chr: chrA
+INFO [2026-06-14 23:42:27] smooth_by_chromosome: chr: chr_0
+INFO [2026-06-14 23:42:27] smooth_by_chromosome: chr: chr_B
+INFO [2026-06-14 23:42:27] smooth_by_chromosome: chr: chr_0pt5
+INFO [2026-06-14 23:42:27] smooth_by_chromosome: chr: chr_C
+INFO [2026-06-14 23:42:27] smooth_by_chromosome: chr: chr_1pt5
+INFO [2026-06-14 23:42:27] smooth_by_chromosome: chr: chr_D
+INFO [2026-06-14 23:42:28] smooth_by_chromosome: chr: chr_2pt0
+INFO [2026-06-14 23:42:28] smooth_by_chromosome: chr: chr_E
+INFO [2026-06-14 23:42:28] smooth_by_chromosome: chr: chr_3pt0
+INFO [2026-06-14 23:42:28] smooth_by_chromosome: chr: chr_F
+INFO [2026-06-14 23:42:46] 
+
+	STEP 11: re-centering data across chromosome after smoothing
+
+INFO [2026-06-14 23:42:46] ::center_smooth across chromosomes per cell
+INFO [2026-06-14 23:42:53] -mirroring for hspike
+INFO [2026-06-14 23:42:53] ::center_smooth across chromosomes per cell
+INFO [2026-06-14 23:43:12] 
+
+	STEP 12: removing average of reference data (after smoothing)
+
+INFO [2026-06-14 23:43:12] ::subtract_ref_expr_from_obs:Start inv_log=FALSE, use_bounds=TRUE
+INFO [2026-06-14 23:43:12] subtracting mean(normal) per gene per cell across all data
+INFO [2026-06-14 23:43:15] -subtracting expr per gene, use_bounds=TRUE
+INFO [2026-06-14 23:43:18] -mirroring for hspike
+INFO [2026-06-14 23:43:18] ::subtract_ref_expr_from_obs:Start inv_log=FALSE, use_bounds=TRUE
+INFO [2026-06-14 23:43:18] subtracting mean(normal) per gene per cell across all data
+INFO [2026-06-14 23:43:24] -subtracting expr per gene, use_bounds=TRUE
+INFO [2026-06-14 23:43:44] 
+
+	STEP 14: invert log2(FC) to FC
+
+INFO [2026-06-14 23:43:44] invert_log2(), computing 2^x
+INFO [2026-06-14 23:43:50] -mirroring for hspike
+INFO [2026-06-14 23:43:50] invert_log2(), computing 2^x
+INFO [2026-06-14 23:44:13] 
+
+	STEP 15: computing tumor subclusters via qnorm
+
+INFO [2026-06-14 23:44:13] define_signif_tumor_subclusters(p_val=0.1
+INFO [2026-06-14 23:44:13] define_signif_tumor_subclusters(), tumor: all_observations
+INFO [2026-06-14 23:50:33] cut height based on p_val(0.1) = 8.87664 and partition_method: qnorm
+INFO [2026-06-14 23:50:33] cut tree into: 100 groups
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s1
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s2
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s3
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s4
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s5
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s6
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s7
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s8
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s9
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s10
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s11
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s12
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s13
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s14
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s15
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s16
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s17
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s18
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s19
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s20
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s21
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s22
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s23
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s24
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s25
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s26
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s27
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s28
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s29
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s30
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s31
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s32
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s33
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s34
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s35
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s36
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s37
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s38
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s39
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s40
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s41
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s42
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s43
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s44
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s45
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s46
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s47
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s48
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s49
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s50
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s51
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s52
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s53
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s54
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s55
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s56
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s57
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s58
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s59
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s60
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s61
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s62
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s63
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s64
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s65
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s66
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s67
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s68
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s69
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s70
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s71
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s72
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s73
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s74
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s75
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s76
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s77
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s78
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s79
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s80
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s81
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s82
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s83
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s84
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s85
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s86
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s87
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s88
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s89
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s90
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s91
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s92
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s93
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s94
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s95
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s96
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s97
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s98
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s99
+INFO [2026-06-14 23:50:33] -processing all_observations,all_observations_s100
+INFO [2026-06-14 23:50:33] define_signif_tumor_subclusters(), tumor: 16
+INFO [2026-06-14 23:50:33] cut height based on p_val(0.1) = 6.35507 and partition_method: qnorm
+INFO [2026-06-14 23:50:33] cut tree into: 9 groups
+INFO [2026-06-14 23:50:33] -processing 16,16_s1
+INFO [2026-06-14 23:50:33] -processing 16,16_s2
+INFO [2026-06-14 23:50:33] -processing 16,16_s3
+INFO [2026-06-14 23:50:33] -processing 16,16_s4
+INFO [2026-06-14 23:50:33] -processing 16,16_s5
+INFO [2026-06-14 23:50:33] -processing 16,16_s6
+INFO [2026-06-14 23:50:33] -processing 16,16_s7
+INFO [2026-06-14 23:50:33] -processing 16,16_s8
+INFO [2026-06-14 23:50:33] -processing 16,16_s9
+INFO [2026-06-14 23:50:33] -mirroring for hspike
+INFO [2026-06-14 23:50:33] define_signif_tumor_subclusters(p_val=0.1
+INFO [2026-06-14 23:50:33] define_signif_tumor_subclusters(), tumor: spike_tumor_cell_16
+INFO [2026-06-14 23:50:33] cut tree into: 1 groups
+INFO [2026-06-14 23:50:33] -processing spike_tumor_cell_16,spike_tumor_cell_16_s1
+INFO [2026-06-14 23:50:33] define_signif_tumor_subclusters(), tumor: simnorm_cell_16
+INFO [2026-06-14 23:50:33] cut tree into: 1 groups
+INFO [2026-06-14 23:50:33] -processing simnorm_cell_16,simnorm_cell_16_s1
+INFO [2026-06-14 23:51:20] 
+
+	STEP 17: HMM-based CNV prediction
+
+INFO [2026-06-14 23:51:20] predict_CNV_via_HMM_on_tumor_subclusters
+INFO [2026-06-14 23:52:03] -done predicting CNV based on initial tumor subclusters
+INFO [2026-06-14 23:52:03] get_predicted_CNV_regions(subcluster)
+INFO [2026-06-14 23:52:03] -processing cell_group_name: all_observations.all_observations_s1, size: 19
+INFO [2026-06-14 23:52:10] -processing cell_group_name: all_observations.all_observations_s2, size: 23
+INFO [2026-06-14 23:52:17] -processing cell_group_name: all_observations.all_observations_s3, size: 18
+INFO [2026-06-14 23:52:23] -processing cell_group_name: all_observations.all_observations_s4, size: 34
+INFO [2026-06-14 23:52:30] -processing cell_group_name: all_observations.all_observations_s5, size: 16
+INFO [2026-06-14 23:52:37] -processing cell_group_name: all_observations.all_observations_s6, size: 22
+INFO [2026-06-14 23:52:44] -processing cell_group_name: all_observations.all_observations_s7, size: 27
+INFO [2026-06-14 23:52:51] -processing cell_group_name: all_observations.all_observations_s8, size: 22
+INFO [2026-06-14 23:52:58] -processing cell_group_name: all_observations.all_observations_s9, size: 32
+INFO [2026-06-14 23:53:05] -processing cell_group_name: all_observations.all_observations_s10, size: 20
+INFO [2026-06-14 23:53:12] -processing cell_group_name: all_observations.all_observations_s11, size: 18
+INFO [2026-06-14 23:53:18] -processing cell_group_name: all_observations.all_observations_s12, size: 31
+INFO [2026-06-14 23:53:25] -processing cell_group_name: all_observations.all_observations_s13, size: 26
+INFO [2026-06-14 23:53:32] -processing cell_group_name: all_observations.all_observations_s14, size: 39
+INFO [2026-06-14 23:53:39] -processing cell_group_name: all_observations.all_observations_s15, size: 30
+INFO [2026-06-14 23:53:46] -processing cell_group_name: all_observations.all_observations_s16, size: 24
+INFO [2026-06-14 23:53:54] -processing cell_group_name: all_observations.all_observations_s17, size: 18
+INFO [2026-06-14 23:54:00] -processing cell_group_name: all_observations.all_observations_s18, size: 31
+INFO [2026-06-14 23:54:07] -processing cell_group_name: all_observations.all_observations_s19, size: 18
+INFO [2026-06-14 23:54:14] -processing cell_group_name: all_observations.all_observations_s20, size: 18
+INFO [2026-06-14 23:54:21] -processing cell_group_name: all_observations.all_observations_s21, size: 13
+INFO [2026-06-14 23:54:28] -processing cell_group_name: all_observations.all_observations_s22, size: 40
+INFO [2026-06-14 23:54:35] -processing cell_group_name: all_observations.all_observations_s23, size: 16
+INFO [2026-06-14 23:54:42] -processing cell_group_name: all_observations.all_observations_s24, size: 20
+INFO [2026-06-14 23:54:49] -processing cell_group_name: all_observations.all_observations_s25, size: 40
+INFO [2026-06-14 23:54:56] -processing cell_group_name: all_observations.all_observations_s26, size: 45
+INFO [2026-06-14 23:55:03] -processing cell_group_name: all_observations.all_observations_s27, size: 26
+INFO [2026-06-14 23:55:10] -processing cell_group_name: all_observations.all_observations_s28, size: 60
+INFO [2026-06-14 23:55:17] -processing cell_group_name: all_observations.all_observations_s29, size: 13
+INFO [2026-06-14 23:55:24] -processing cell_group_name: all_observations.all_observations_s30, size: 25
+INFO [2026-06-14 23:55:31] -processing cell_group_name: all_observations.all_observations_s31, size: 21
+INFO [2026-06-14 23:55:38] -processing cell_group_name: all_observations.all_observations_s32, size: 13
+INFO [2026-06-14 23:55:45] -processing cell_group_name: all_observations.all_observations_s33, size: 15
+INFO [2026-06-14 23:55:51] -processing cell_group_name: all_observations.all_observations_s34, size: 18
+INFO [2026-06-14 23:55:59] -processing cell_group_name: all_observations.all_observations_s35, size: 40
+INFO [2026-06-14 23:56:06] -processing cell_group_name: all_observations.all_observations_s36, size: 17
+INFO [2026-06-14 23:56:12] -processing cell_group_name: all_observations.all_observations_s37, size: 62
+INFO [2026-06-14 23:56:20] -processing cell_group_name: all_observations.all_observations_s38, size: 35
+INFO [2026-06-14 23:56:27] -processing cell_group_name: all_observations.all_observations_s39, size: 71
+INFO [2026-06-14 23:56:34] -processing cell_group_name: all_observations.all_observations_s40, size: 24
+INFO [2026-06-14 23:56:41] -processing cell_group_name: all_observations.all_observations_s41, size: 10
+INFO [2026-06-14 23:56:48] -processing cell_group_name: all_observations.all_observations_s42, size: 23
+INFO [2026-06-14 23:56:55] -processing cell_group_name: all_observations.all_observations_s43, size: 83
+INFO [2026-06-14 23:57:03] -processing cell_group_name: all_observations.all_observations_s44, size: 26
+INFO [2026-06-14 23:57:10] -processing cell_group_name: all_observations.all_observations_s45, size: 31
+INFO [2026-06-14 23:57:17] -processing cell_group_name: all_observations.all_observations_s46, size: 15
+INFO [2026-06-14 23:57:24] -processing cell_group_name: all_observations.all_observations_s47, size: 23
+INFO [2026-06-14 23:57:30] -processing cell_group_name: all_observations.all_observations_s48, size: 15
+INFO [2026-06-14 23:57:37] -processing cell_group_name: all_observations.all_observations_s49, size: 17
+INFO [2026-06-14 23:57:44] -processing cell_group_name: all_observations.all_observations_s50, size: 35
+INFO [2026-06-14 23:57:51] -processing cell_group_name: all_observations.all_observations_s51, size: 20
+INFO [2026-06-14 23:57:58] -processing cell_group_name: all_observations.all_observations_s52, size: 30
+INFO [2026-06-14 23:58:06] -processing cell_group_name: all_observations.all_observations_s53, size: 14
+INFO [2026-06-14 23:58:12] -processing cell_group_name: all_observations.all_observations_s54, size: 14
+INFO [2026-06-14 23:58:19] -processing cell_group_name: all_observations.all_observations_s55, size: 26
+INFO [2026-06-14 23:58:26] -processing cell_group_name: all_observations.all_observations_s56, size: 24
+INFO [2026-06-14 23:58:33] -processing cell_group_name: all_observations.all_observations_s57, size: 24
+INFO [2026-06-14 23:58:39] -processing cell_group_name: all_observations.all_observations_s58, size: 15
+INFO [2026-06-14 23:58:46] -processing cell_group_name: all_observations.all_observations_s59, size: 17
+INFO [2026-06-14 23:58:53] -processing cell_group_name: all_observations.all_observations_s60, size: 18
+INFO [2026-06-14 23:59:00] -processing cell_group_name: all_observations.all_observations_s61, size: 27
+INFO [2026-06-14 23:59:08] -processing cell_group_name: all_observations.all_observations_s62, size: 29
+INFO [2026-06-14 23:59:15] -processing cell_group_name: all_observations.all_observations_s63, size: 18
+INFO [2026-06-14 23:59:22] -processing cell_group_name: all_observations.all_observations_s64, size: 18
+INFO [2026-06-14 23:59:29] -processing cell_group_name: all_observations.all_observations_s65, size: 14
+INFO [2026-06-14 23:59:36] -processing cell_group_name: all_observations.all_observations_s66, size: 15
+INFO [2026-06-14 23:59:42] -processing cell_group_name: all_observations.all_observations_s67, size: 21
+INFO [2026-06-14 23:59:49] -processing cell_group_name: all_observations.all_observations_s68, size: 16
+INFO [2026-06-14 23:59:56] -processing cell_group_name: all_observations.all_observations_s69, size: 24
+INFO [2026-06-15 00:00:03] -processing cell_group_name: all_observations.all_observations_s70, size: 204
+INFO [2026-06-15 00:00:12] -processing cell_group_name: all_observations.all_observations_s71, size: 20
+INFO [2026-06-15 00:00:19] -processing cell_group_name: all_observations.all_observations_s72, size: 167
+INFO [2026-06-15 00:00:27] -processing cell_group_name: all_observations.all_observations_s73, size: 19
+INFO [2026-06-15 00:00:34] -processing cell_group_name: all_observations.all_observations_s74, size: 22
+INFO [2026-06-15 00:00:41] -processing cell_group_name: all_observations.all_observations_s75, size: 124
+INFO [2026-06-15 00:00:49] -processing cell_group_name: all_observations.all_observations_s76, size: 108
+INFO [2026-06-15 00:00:57] -processing cell_group_name: all_observations.all_observations_s77, size: 96
+INFO [2026-06-15 00:01:05] -processing cell_group_name: all_observations.all_observations_s78, size: 70
+INFO [2026-06-15 00:01:12] -processing cell_group_name: all_observations.all_observations_s79, size: 40
+INFO [2026-06-15 00:01:20] -processing cell_group_name: all_observations.all_observations_s80, size: 102
+INFO [2026-06-15 00:01:27] -processing cell_group_name: all_observations.all_observations_s81, size: 185
+INFO [2026-06-15 00:01:36] -processing cell_group_name: all_observations.all_observations_s82, size: 47
+INFO [2026-06-15 00:01:43] -processing cell_group_name: all_observations.all_observations_s83, size: 189
+INFO [2026-06-15 00:01:51] -processing cell_group_name: all_observations.all_observations_s84, size: 127
+INFO [2026-06-15 00:01:59] -processing cell_group_name: all_observations.all_observations_s85, size: 121
+INFO [2026-06-15 00:02:07] -processing cell_group_name: all_observations.all_observations_s86, size: 22
+INFO [2026-06-15 00:02:13] -processing cell_group_name: all_observations.all_observations_s87, size: 79
+INFO [2026-06-15 00:02:21] -processing cell_group_name: all_observations.all_observations_s88, size: 102
+INFO [2026-06-15 00:02:29] -processing cell_group_name: all_observations.all_observations_s89, size: 51
+INFO [2026-06-15 00:02:36] -processing cell_group_name: all_observations.all_observations_s90, size: 42
+INFO [2026-06-15 00:02:43] -processing cell_group_name: all_observations.all_observations_s91, size: 103
+INFO [2026-06-15 00:02:51] -processing cell_group_name: all_observations.all_observations_s92, size: 35
+INFO [2026-06-15 00:02:58] -processing cell_group_name: all_observations.all_observations_s93, size: 76
+INFO [2026-06-15 00:03:05] -processing cell_group_name: all_observations.all_observations_s94, size: 42
+INFO [2026-06-15 00:03:12] -processing cell_group_name: all_observations.all_observations_s95, size: 54
+INFO [2026-06-15 00:03:20] -processing cell_group_name: all_observations.all_observations_s96, size: 148
+INFO [2026-06-15 00:03:28] -processing cell_group_name: all_observations.all_observations_s97, size: 9
+INFO [2026-06-15 00:03:35] -processing cell_group_name: all_observations.all_observations_s98, size: 86
+INFO [2026-06-15 00:03:43] -processing cell_group_name: all_observations.all_observations_s99, size: 83
+INFO [2026-06-15 00:03:50] -processing cell_group_name: all_observations.all_observations_s100, size: 25
+INFO [2026-06-15 00:03:57] -processing cell_group_name: 16.16_s1, size: 6
+INFO [2026-06-15 00:04:04] -processing cell_group_name: 16.16_s2, size: 28
+INFO [2026-06-15 00:04:11] -processing cell_group_name: 16.16_s3, size: 2
+INFO [2026-06-15 00:04:18] -processing cell_group_name: 16.16_s4, size: 31
+INFO [2026-06-15 00:04:25] -processing cell_group_name: 16.16_s5, size: 7
+INFO [2026-06-15 00:04:32] -processing cell_group_name: 16.16_s6, size: 5
+INFO [2026-06-15 00:04:40] -processing cell_group_name: 16.16_s7, size: 10
+INFO [2026-06-15 00:04:46] -processing cell_group_name: 16.16_s8, size: 3
+INFO [2026-06-15 00:04:53] -processing cell_group_name: 16.16_s9, size: 1
+INFO [2026-06-15 00:04:59] -writing cell clusters file: D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/output/03_infercnv/output_Spatial/17_HMM_predHMMi6.qnorm.hmm_mode-subclusters.cell_groupings
+INFO [2026-06-15 00:05:00] -writing cnv regions file: D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/output/03_infercnv/output_Spatial/17_HMM_predHMMi6.qnorm.hmm_mode-subclusters.pred_cnv_regions.dat
+INFO [2026-06-15 00:05:02] -writing per-gene cnv report: D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/output/03_infercnv/output_Spatial/17_HMM_predHMMi6.qnorm.hmm_mode-subclusters.pred_cnv_genes.dat
+INFO [2026-06-15 00:05:05] -writing gene ordering info: D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/output/03_infercnv/output_Spatial/17_HMM_predHMMi6.qnorm.hmm_mode-subclusters.genes_used.dat
+INFO [2026-06-15 00:05:15] 
+
+	STEP 20: Converting HMM-based CNV states to repr expr vals
+
+INFO [2026-06-15 00:05:25] 
+
+	STEP 22: Denoising
+
+INFO [2026-06-15 00:05:25] ::process_data:Remove noise, noise threshold defined via ref mean sd_amplifier:  1.5
+INFO [2026-06-15 00:05:25] denoising using mean(normal) +- sd_amplifier * sd(normal) per gene per cell across all data
+INFO [2026-06-15 00:05:25] :: **** clear_noise_via_ref_quantiles **** : removing noise between bounds:  0.937764480369914 - 1.06409434837907
+2026-06-15 00:05:47 | infercnv::run completed
+2026-06-15 00:05:47 | saving inferCNV object
+2026-06-15 00:05:57 | saved D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/intermediate/03_infercnv_obj.rds.gz
+2026-06-15 00:05:57 | no HMM observations table found; skipping D:/bioinfozhangys/files of jupyter/Cottrazm-main/scripts_format_R/intermediate/03_cnv_calls.tsv

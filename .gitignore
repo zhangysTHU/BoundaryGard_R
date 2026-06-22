@@ -1,0 +1,41 @@
+# RStudio and local session state
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+.tmp/
+
+# Reproducible environment cache (keep lightweight bootstrap files)
+renv/library/
+renv/local/
+renv/cellar/
+renv/lock/
+renv/python/
+renv/sandbox/
+renv/staging/
+
+# Regenerable workflow intermediates
+intermediate/*
+!intermediate/.gitkeep
+
+# Oversized source/reference object
+sc_reference_preprocessing/Wu et al.BRCA/wu2021_brca_seurat.rds
+
+# Oversized generated outputs (GitHub hard limit: 100 MB per file)
+output/CRC1/02_morphology_cluster/CRC1_raw_SME_normalizeA.mtx
+output/CRC1/03_infercnv/output_Spatial/08_remove_ref_avg_from_obs_logFCHMMi6.infercnv_obj
+output/CRC1/03_infercnv/output_Spatial/09_apply_max_centered_expr_thresholdHMMi6.infercnv_obj
+output/CRC1/03_infercnv/output_Spatial/10_smoothed_by_chrHMMi6.infercnv_obj
+output/CRC1/03_infercnv/output_Spatial/11_recentered_cells_by_chrHMMi6.infercnv_obj
+output/CRC1/03_infercnv/output_Spatial/12_remove_ref_avg_from_obs_adjustHMMi6.infercnv_obj
+output/CRC1/03_infercnv/output_Spatial/14_invert_log_transformHMMi6.infercnv_obj
+output/CRC1/03_infercnv/output_Spatial/15_tumor_subclustersHMMi6.qnorm.infercnv_obj
+output/CRC1/03_infercnv/output_Spatial/22_denoiseHMMi6.qnorm.NF_NA.SD_1.5.NL_FALSE.infercnv_obj
+output/CRC1/03_infercnv/output_Spatial/preliminary.infercnv_obj
+output/CRC1/03_infercnv/output_Spatial/run.final.infercnv_obj
+
+# Common editor / OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
