@@ -17,7 +17,6 @@ cnv_outdir <- file.path(paths$output, "03_infercnv", paste0("output_", assay))
 out_dir <- file.path(paths$output, "04_cnv_score")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-# 优先使用统一的 03_cnv_calls.tsv；兼容路径保留给直接读取 inferCNV 原始 HMM 输出。
 tree_file <- file.path(cnv_outdir, "infercnv.17_HMM_predHMMi6.rand_trees.hmm_mode-subclusters.observations_dendrogram.txt")
 calls_file <- file.path(paths$intermediate, "03_cnv_calls.tsv")
 if (file.exists(calls_file)) {

@@ -22,11 +22,30 @@ position$spot.ids <- seq_len(nrow(position))
 dists <- compute_interspot_distances(position = position, scale.factor = 1.05)
 df_j <- find_neighbors(position = position, radius = dists$radius, method = "manhattan")
 
-# 若未手动指定恶性 CNV 标签，就取 cnv_score 中位数最高的两个 CNVLabel。
+# 若未手动指定恶性 CNV 标签，就从有效 Observation 标签中取 CNV score 中位数最高的两个。
+# Reference/Filtered 绝不能成为恶性种子；全 NA 的低质量 spot 也不参与排序。
 MalLabel <- params$malignant_cnv_labels
+forbidden_labels <- c("Normal", "Filtered")
 if (is.null(MalLabel)) {
-  label_scores <- unlist(lapply(split(TumorST@meta.data[, c("CNVLabel", "cnv_score")], TumorST@meta.data$CNVLabel), function(x) median(x$cnv_score, na.rm = TRUE)))
+  role_ok <- if ("infercnv_role" %in% colnames(TumorST@meta.data)) {
+    TumorST@meta.data$infercnv_role == "Observation"
+  } else {
+    rep(TRUE, nrow(TumorST@meta.data))
+  }
+  valid <- is.finite(TumorST@meta.data$cnv_score) &
+    !TumorST@meta.data$CNVLabel %in% forbidden_labels & role_ok
+  label_scores <- vapply(
+    split(TumorST@meta.data$cnv_score[valid], TumorST@meta.data$CNVLabel[valid]),
+    stats::median,
+    FUN.VALUE = numeric(1),
+    na.rm = TRUE
+  )
+  label_scores <- label_scores[is.finite(label_scores)]
+  if (length(label_scores) < 2) stop("Fewer than two valid Observation CNV labels for malignant seeding", call. = FALSE)
   MalLabel <- names(sort(label_scores, decreasing = TRUE))[1:2]
+} else {
+  MalLabel <- setdiff(as.character(MalLabel), forbidden_labels)
+  if (length(MalLabel) < 1) stop("malignant_cnv_labels contains only forbidden Reference/Filtered labels", call. = FALSE)
 }
 
 MalCellID <- rownames(TumorST@meta.data[TumorST@meta.data$CNVLabel %in% MalLabel, ])

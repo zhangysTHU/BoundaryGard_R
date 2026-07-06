@@ -8,7 +8,7 @@ import argparse
 import stlearn as st
 import scanpy as sc
 import numpy as np
-from numpy import random,mat
+from numpy import random
 from pathlib import Path
 import pandas as pd
 from scipy import io,sparse
@@ -40,7 +40,7 @@ def ME_normalize(inDir,outDir,sample):
     st.spatial.SME.SME_normalize(data, use_data="raw",weights =  "weights_matrix_gd_md")
 
     #convert SME_norm data to sparesmatrix
-    raw_SME_normalized = mat(data.obsm['raw_SME_normalized'])
+    raw_SME_normalized = np.asarray(data.obsm['raw_SME_normalized'])
     raw_SME_normalizedA = sparse.csr_matrix(raw_SME_normalized)
     print ("matrix convert ok!")
     

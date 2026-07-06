@@ -1,13 +1,13 @@
-# BoundaryGrad R workflow
+# Cottrazm R 顺序脚本版说明
 
-本仓库是 Cottrazm/BoundaryGrad 的 R 顺序脚本工作流。默认样本名为 `CRC1`，输入、输出和中间文件均按样本名分目录保存。R 版只有一条 inferCNV 路线，因此不使用 03a/03b 后缀。
+本目录是 Cottrazm 的 R 顺序脚本工作流。默认样本名为 `CRC1`，输入、输出和中间文件均按样本名分目录保存。R 版只有一条 inferCNV 路线，因此不使用 03a/03b 后缀。
 
 ## 目录放置规则
 
 默认目录如下：
 
 ```text
-BoundaryGard_R/
+scripts_format_R/
   input/
     CRC1/
       spaceranger_outs/
@@ -19,8 +19,6 @@ BoundaryGard_R/
 ```
 
 `input/CRC1/` 是样本输入目录。`intermediate/CRC1/` 是脚本之间传递的 RDS、TSV 等中间文件目录。`output/CRC1/` 是图、表、inferCNV 输出和人工检查结果目录。
-
-仓库完整保留 `input/`，并上传 `output/` 中小于 GitHub 100 MB 单文件限制的结果。大型 inferCNV 对象、SME 矩阵、`intermediate/` 与本地 renv 缓存不纳入 Git；详见 `UPLOAD_EXCLUSIONS.md`。
 
 ## 空间转录组输入
 
@@ -102,8 +100,6 @@ intermediate/CRC1/06_clustermarkers_list.rds.gz
 
 ## 运行方式
 
-先在 R 中执行 `renv::restore()` 恢复依赖。PowerShell 脚本默认调用 PATH 中的 `Rscript`，也可通过 `-Rscript` 指定完整路径。
-
 完整运行默认样本 `CRC1`：
 
 ```powershell
@@ -134,6 +130,38 @@ intermediate/CRC2/
 ```powershell
 .\run_all.ps1 -FromStep 1 -ToStep 5
 ```
+
+## Linux 环境说明
+
+当前项目默认使用统一的 Miniforge 环境 `BoundaryGrad`：
+
+```text
+/lulabdata3/huangkeyun/zhangys/tools/miniforge3/envs/BoundaryGrad
+```
+
+对应环境文件在项目根目录：
+
+```text
+../cottrazm_env_linux.yml
+```
+
+默认情况下不再自动启用项目内的 Windows `renv` 包库；若确实需要旧的 `renv` 路线，可显式设置：
+
+```bash
+export COTTRAZM_USE_RENV=1
+```
+
+正常在 Linux 上建议直接使用：
+
+```bash
+unset PYTHONHOME PYTHONPATH
+export LANG=C
+export LC_ALL=C
+source /lulabdata3/huangkeyun/zhangys/tools/miniforge3/etc/profile.d/conda.sh
+conda activate BoundaryGrad
+```
+
+如果后续从这个环境里直接启动 Jupyter，建议保留上面的 `unset PYTHONHOME PYTHONPATH` 与 `LANG/LC_ALL` 设置，避免宿主 shell 的 Python 或 locale 配置干扰 `ipykernel` / `IRkernel`。
 
 ## 关键输出
 

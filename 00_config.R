@@ -21,8 +21,22 @@ script_dir <- if (!is.null(script_file)) {
 } else {
   normalizePath(getwd(), winslash = "/", mustWork = FALSE)
 }
+if (!basename(script_dir) == "scripts_format_R") {
+  script_dir <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+}
 
 sample_name <- Sys.getenv("COTTRAZM_SAMPLE_NAME", unset = "CRC1")
+conda_root <- Sys.getenv("COTTRAZM_CONDA_ROOT", unset = "")
+python_conda_env <- Sys.getenv("COTTRAZM_CONDA_ENV", unset = "BoundaryGrad")
+python_bin_default <- if (nzchar(conda_root)) {
+  file.path(conda_root, "envs", python_conda_env, "bin", "python")
+} else {
+  Sys.which("python")
+}
+python_bin <- Sys.getenv(
+  "COTTRAZM_PYTHON",
+  unset = if (nzchar(python_bin_default)) python_bin_default else "python"
+)
 
 # 所有路径均相对 scripts_format_R。
 input_root <- file.path(script_dir, "input")
@@ -49,8 +63,24 @@ params <- list(
   cluster_resolution = 1.5,
   infercnv_assay = "Spatial",
   infercnv_threads = 30,
+  infercnv_partition_method = "qnorm",
+  infercnv_analysis_mode = "subclusters",
+  infercnv_min_counts = 100,
+  infercnv_min_features = 100,
+  infercnv_reference_fraction = 0.06,
+  infercnv_reference_min_spots = 150,
+  infercnv_reference_max_spots = 400,
+  infercnv_reference_immune_markers = c(
+    "PTPRC", "CD2", "CD3D", "CD3E", "CD3G",
+    "CD5", "CD7", "CD79A", "MS4A1", "CD19"
+  ),
+  infercnv_reference_epithelial_markers = c(
+    "EPCAM", "KRT5", "KRT7", "KRT8", "KRT14",
+    "KRT15", "KRT17", "KRT18", "KRT19"
+  ),
   cnv_k = 8,
-  python_conda_env = "cottrazm-py",
+  python_conda_env = python_conda_env,
+  python_bin = python_bin,
   malignant_cnv_labels = NULL,
   decon_malignant_cluster = "Malignant epithelial cells",
   decon_tissue_cluster = "Epithelial cells",

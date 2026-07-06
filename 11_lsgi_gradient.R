@@ -46,12 +46,28 @@ cli_opts <- parse_cli_options(commandArgs(trailingOnly = TRUE))
 out_dir <- file.path(paths$output, "11_lsgi_gradient")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-# LSGI 作为外部方法源码放在项目根目录的 LSGI-master 下。
-lsgi_root <- normalizePath(file.path(script_dir, "..", "LSGI-master"), winslash = "/", mustWork = TRUE)
-lsgi_script <- file.path(lsgi_root, "R", "LSGI.R")
-if (!file.exists(lsgi_script)) {
-  stop("Cannot find LSGI source script: ", lsgi_script, call. = FALSE)
+# LSGI 作为外部方法源码，优先找项目根目录的 LSGI-master；
+# 若仓库结构包含 Cottrazm-main/LSGI-master，也自动兼容。
+lsgi_root_candidates <- c(
+  file.path(script_dir, "..", "LSGI-master"),
+  file.path(script_dir, "..", "Cottrazm-main", "LSGI-master")
+)
+lsgi_root <- NULL
+for (candidate in lsgi_root_candidates) {
+  candidate_norm <- normalizePath(candidate, winslash = "/", mustWork = FALSE)
+  if (dir.exists(candidate_norm) && file.exists(file.path(candidate_norm, "R", "LSGI.R"))) {
+    lsgi_root <- candidate_norm
+    break
+  }
 }
+if (is.null(lsgi_root)) {
+  stop(
+    "Cannot find LSGI source directory. Tried: ",
+    paste(normalizePath(lsgi_root_candidates, winslash = "/", mustWork = FALSE), collapse = ", "),
+    call. = FALSE
+  )
+}
+lsgi_script <- file.path(lsgi_root, "R", "LSGI.R")
 
 # LSGI 内部需要 balanced_clustering；若 anticlust 不存在，就用 kmeans fallback 保证可运行。
 if (requireNamespace("anticlust", quietly = TRUE)) {
@@ -88,10 +104,10 @@ image_coordinates <- tryCatch(
     coords <- Seurat::GetTissueCoordinates(TumorST)
     rownames(coords) <- coords$cell
     data.frame(
-      row = coords$y,
-      col = coords$x,
-      imagerow = coords$y,
-      imagecol = coords$x,
+      row = coords$x,
+      col = coords$y,
+      imagerow = coords$x,
+      imagecol = coords$y,
       row.names = coords$cell
     )
   }
