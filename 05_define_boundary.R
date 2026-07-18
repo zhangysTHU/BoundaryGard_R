@@ -11,8 +11,32 @@ load_required_packages(c("Seurat", "magrittr", "dplyr", "purrr", "tibble", "ggpl
 source(file.path(paths$lib, "boundary_helpers.R"))
 
 TumorST <- readr::read_rds(file.path(paths$intermediate, "04_TumorST_cnv_scored.rds.gz"))
-out_dir <- file.path(paths$output, "05_boundary")
+boundary_run_id <- params$boundary_run_id %||% ""
+if (nzchar(boundary_run_id) && grepl("[/\\\\]", boundary_run_id)) {
+  stop("boundary_run_id must not contain path separators: ", boundary_run_id, call. = FALSE)
+}
+out_dir_root <- file.path(paths$output, "05_boundary")
+out_dir <- if (nzchar(boundary_run_id)) file.path(out_dir_root, boundary_run_id) else out_dir_root
+intermediate_out_dir <- if (nzchar(boundary_run_id)) file.path(paths$intermediate, boundary_run_id) else paths$intermediate
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(intermediate_out_dir, recursive = TRUE, showWarnings = FALSE)
+
+boundary_mal_cluster_fraction <- params$boundary_mal_cluster_fraction
+boundary_umap_mal_ratio <- params$boundary_umap_mal_ratio
+boundary_expand_mal_radius <- params$boundary_expand_mal_radius
+boundary_max_rounds <- params$boundary_max_rounds
+if (!is.finite(boundary_mal_cluster_fraction) || boundary_mal_cluster_fraction <= 0 || boundary_mal_cluster_fraction > 1) {
+  stop("boundary_mal_cluster_fraction must be in (0, 1]; got ", boundary_mal_cluster_fraction, call. = FALSE)
+}
+if (!is.finite(boundary_umap_mal_ratio) || boundary_umap_mal_ratio <= 0) {
+  stop("boundary_umap_mal_ratio must be > 0; got ", boundary_umap_mal_ratio, call. = FALSE)
+}
+if (!is.finite(boundary_expand_mal_radius) || boundary_expand_mal_radius <= 0) {
+  stop("boundary_expand_mal_radius must be > 0; got ", boundary_expand_mal_radius, call. = FALSE)
+}
+if (!is.finite(boundary_max_rounds) || boundary_max_rounds < 1) {
+  stop("boundary_max_rounds must be >= 1; got ", boundary_max_rounds, call. = FALSE)
+}
 
 # UMAP 用来衡量表达/形态相似性；空间邻接表用来限制边界只能沿相邻 spot 扩展。
 UMAPembeddings <- as.data.frame(TumorST@reductions$umap@cell.embeddings)
@@ -22,12 +46,54 @@ position$spot.ids <- seq_len(nrow(position))
 dists <- compute_interspot_distances(position = position, scale.factor = 1.05)
 df_j <- find_neighbors(position = position, radius = dists$radius, method = "manhattan")
 
-# 若未手动指定恶性 CNV 标签，就取 cnv_score 中位数最高的两个 CNVLabel。
-MalLabel <- params$malignant_cnv_labels
+# 若未手动指定恶性 CNV 标签，就从有效 Observation 标签中取 CNV score 中位数最高的两个。
+# Reference/Filtered 绝不能成为恶性种子；全 NA 的低质量 spot 也不参与排序。
+MalLabel <- params$boundary_malignant_cnv_labels %||% params$malignant_cnv_labels
+forbidden_labels <- c("Normal", "Filtered")
 if (is.null(MalLabel)) {
-  label_scores <- unlist(lapply(split(TumorST@meta.data[, c("CNVLabel", "cnv_score")], TumorST@meta.data$CNVLabel), function(x) median(x$cnv_score, na.rm = TRUE)))
+  role_ok <- if ("infercnv_role" %in% colnames(TumorST@meta.data)) {
+    TumorST@meta.data$infercnv_role == "Observation"
+  } else {
+    rep(TRUE, nrow(TumorST@meta.data))
+  }
+  valid <- is.finite(TumorST@meta.data$cnv_score) &
+    !TumorST@meta.data$CNVLabel %in% forbidden_labels & role_ok
+  label_scores <- vapply(
+    split(TumorST@meta.data$cnv_score[valid], TumorST@meta.data$CNVLabel[valid]),
+    stats::median,
+    FUN.VALUE = numeric(1),
+    na.rm = TRUE
+  )
+  label_scores <- label_scores[is.finite(label_scores)]
+  if (length(label_scores) < 2) stop("Fewer than two valid Observation CNV labels for malignant seeding", call. = FALSE)
   MalLabel <- names(sort(label_scores, decreasing = TRUE))[1:2]
+} else {
+  MalLabel <- setdiff(as.character(MalLabel), forbidden_labels)
+  if (length(MalLabel) < 1) stop("boundary_malignant_cnv_labels contains only forbidden Reference/Filtered labels", call. = FALSE)
 }
+
+boundary_params <- data.frame(
+  parameter = c(
+    "sample_name",
+    "boundary_run_id",
+    "boundary_malignant_cnv_labels",
+    "boundary_mal_cluster_fraction",
+    "boundary_umap_mal_ratio",
+    "boundary_expand_mal_radius",
+    "boundary_max_rounds"
+  ),
+  value = c(
+    sample_name,
+    if (nzchar(boundary_run_id)) boundary_run_id else "legacy",
+    paste(MalLabel, collapse = ","),
+    as.character(boundary_mal_cluster_fraction),
+    as.character(boundary_umap_mal_ratio),
+    as.character(boundary_expand_mal_radius),
+    as.character(boundary_max_rounds)
+  )
+)
+readr::write_tsv(boundary_params, file.path(out_dir, "params.tsv"))
+readr::write_tsv(boundary_params, file.path(intermediate_out_dir, "params.tsv"))
 
 MalCellID <- rownames(TumorST@meta.data[TumorST@meta.data$CNVLabel %in% MalLabel, ])
 NormalCluster <- levels(TumorST$seurat_clusters)[order(unlist(lapply(split(TumorST@meta.data[, c("seurat_clusters", "NormalScore")], TumorST@meta.data$seurat_clusters), function(x) mean(x$NormalScore))), decreasing = TRUE)[1]]
@@ -36,7 +102,7 @@ NormalCellID <- rownames(TumorST@meta.data[TumorST@meta.data$seurat_clusters == 
 CNV_seurat_df <- as.data.frame.array(table(TumorST@meta.data$CNVLabel, TumorST@meta.data$seurat_clusters))[MalLabel, , drop = FALSE]
 ClusterID <- c()
 for (cluster in levels(TumorST@meta.data$seurat_clusters)) {
-  if (sum(CNV_seurat_df[, cluster]) > table(TumorST@meta.data$seurat_clusters)[cluster] * 0.5) {
+  if (sum(CNV_seurat_df[, cluster]) > table(TumorST@meta.data$seurat_clusters)[cluster] * boundary_mal_cluster_fraction) {
     ClusterID <- c(ClusterID, cluster)
   }
 }
@@ -52,7 +118,7 @@ MalCellIDsi <- purrr::map2(CiMal$sub_MalCellID, CiMal$sub_CiMal, function(x, y) 
     pos <- UMAPembeddings[id, ]
     rt <- sqrt(sum((pos - y)^2))
     rn <- sqrt(sum((pos - CiNormal)^2))
-    if (rt < 1 / 3 * rn) id
+    if (rt < boundary_umap_mal_ratio * rn) id
   }) |> unlist()
 }) |> unlist()
 
@@ -65,7 +131,7 @@ ClusterL <- do.call(rbind, lapply(names(nbrs_of_MalL), function(celll) {
     pos <- UMAPembeddings[idl, ]
     rt <- sqrt(sum((pos - unlist(CiMal[CiMal$cluster == sub, ]$sub_CiMal))^2))
     rn <- sqrt(sum((pos - CiNormal)^2))
-    data.frame(CellID = idl, Location = ifelse(rt < 1 / 3 * rn, "Mal", "Bdy"))
+    data.frame(CellID = idl, Location = ifelse(rt < boundary_umap_mal_ratio * rn, "Mal", "Bdy"))
   }))
 }))
 
@@ -92,7 +158,17 @@ repeat {
   TumorSTn <- subset(TumorST, cells = c(unique(unlist(nbrs_of_Mal)), MalCellID, NormalCellID, BdyCellID))
   TumorSTn@meta.data$Label <- Clustern$Location[match(rownames(TumorSTn@meta.data), Clustern$CellID)]
   TumorSTn@meta.data$Label <- factor(TumorSTn@meta.data$Label, levels = if (n == 1) c("Normal", "Bdy", "Mal") else c("Normal", "Bdy", "Mal", paste0("Mal", 1:(n - 1))))
-  ClusterAdd <- ClusterUpdate(x = n, position = position, df_j = df_j, UMAPembeddings = UMAPembeddings, MalCellIDN = MalCellIDN, BdyCellID = BdyCellID, NormalCellID = NormalCellID, MalCellID = MalCellID)
+  ClusterAdd <- ClusterUpdate(
+    x = n,
+    position = position,
+    df_j = df_j,
+    UMAPembeddings = UMAPembeddings,
+    MalCellIDN = MalCellIDN,
+    BdyCellID = BdyCellID,
+    NormalCellID = NormalCellID,
+    MalCellID = MalCellID,
+    expand_mal_radius = boundary_expand_mal_radius
+  )
   Clustern <- rbind(Clustern, ClusterAdd)
   TumorSTn@meta.data$LabelNew <- Clustern$Location[match(rownames(TumorSTn@meta.data), as.character(Clustern$CellID))]
   TumorSTn@meta.data$LabelNew <- factor(TumorSTn@meta.data$LabelNew, levels = c("Normal", "Bdy", "Mal", paste0("Mal", 1:n)))
@@ -106,7 +182,7 @@ repeat {
   MalCellIDN <- rownames(TumorSTn@meta.data[TumorSTn@meta.data$LabelNew %in% paste0("Mal", n), ])
   BdyCellID <- rownames(TumorSTn@meta.data[TumorSTn$LabelNew == "Bdy", ])
   n <- n + 1
-  if (n > 6) break
+  if (n > boundary_max_rounds) break
 }
 
 # 最终折叠为三类：Mal 为恶性核心/扩展层，Bdy 为边界及邻近正常侧，剩余为 nMal。
@@ -120,6 +196,7 @@ nMal_barcode <- rownames(TumorST@meta.data)[!rownames(TumorST@meta.data) %in% c(
 Barcode_Ann <- data.frame(barcode = c(Mal_barcode, Bdy_barcode, Normal_Bdy_barcode, nMal_barcode), Location = c(rep("Mal", length(Mal_barcode)), rep("Bdy", length(c(Bdy_barcode, Normal_Bdy_barcode))), rep("nMal", length(nMal_barcode))))
 TumorST@meta.data$Location <- Barcode_Ann$Location[match(rownames(TumorST@meta.data), Barcode_Ann$barcode)]
 TumorST@meta.data$Location <- factor(TumorST@meta.data$Location, levels = c("Mal", "Bdy", "nMal"))
+TumorST@misc$boundary_params <- boundary_params
 
 pdf(file.path(out_dir, paste0(sample_name, "_BoundaryDefine.pdf")), width = 7, height = 7)
 boundary_cols <- c(Mal = "#CB181D", Bdy = "#1f78b4", nMal = "#fdb462")
@@ -127,5 +204,9 @@ print(Seurat::SpatialDimPlot(TumorST, group.by = "Location", cols = boundary_col
   ggplot2::scale_fill_manual(values = boundary_cols, drop = FALSE))
 dev.off()
 
-readr::write_rds(TumorSTn, file.path(paths$intermediate, "05_TumorST_boundary_subset.rds.gz"), compress = "gz")
-readr::write_rds(TumorST, file.path(paths$intermediate, "05_TumorST_boundary_defined.rds.gz"), compress = "gz")
+location_counts <- as.data.frame(table(TumorST@meta.data$Location, useNA = "ifany"))
+colnames(location_counts) <- c("Location", "n")
+readr::write_tsv(location_counts, file.path(out_dir, "location_counts.tsv"))
+readr::write_tsv(location_counts, file.path(intermediate_out_dir, "location_counts.tsv"))
+readr::write_rds(TumorSTn, file.path(intermediate_out_dir, "05_TumorST_boundary_subset.rds.gz"), compress = "gz")
+readr::write_rds(TumorST, file.path(intermediate_out_dir, "05_TumorST_boundary_defined.rds.gz"), compress = "gz")

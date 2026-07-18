@@ -1,21 +1,16 @@
-# 11：LSGI cell-component gradient 分析。
-# 输入：
-# - intermediate/05_TumorST_boundary_defined.rds.gz：提供 Location、空间图像和 spot 坐标。
-# - intermediate/07_DeconData.rds.gz：cell_ID + 细胞类型比例，作为 LSGI embeddings。
-# - ../LSGI-master/R/LSGI.R：外部 LSGI 方法源码。
-# 输出：
-# - intermediate/11_lsgi_cell_component_result.rds.gz：LSGI 预处理结果，可通过 --reuse-lsgi=TRUE 复用。
-# - output/11_lsgi_gradient/grid_info.csv：LSGI meta-grid 信息。
-# - output/11_lsgi_gradient/cell_component_gradient_arrows.csv：通过 R2 阈值筛选的细胞组分梯度箭头。
-# - output/11_lsgi_gradient/cell_component_gradient_distance.csv 和 heatmap.pdf：组分梯度距离/相似性。
-# - output/11_lsgi_gradient/*LSGIGradient.pdf：边界图上叠加细胞组分梯度箭头。
-# - output/11_lsgi_gradient/run_summary.txt：本次参数和输出摘要。
+# 11b：LSGI cell-component gradient 分析的增强副本。
+# 在原始 11_lsgi_gradient.R 基础上，额外输出：
+# - grid_local_spots.pdf / grid_local_spots_overlay.pdf：每个 grid 实际用于局部回归的 spot 分页图。
+# - grid_partition.pdf / grid_partition_overlay.pdf：每个 spot 唯一归属最近 grid 的分区图。
+# - spot_grid_membership.csv：按 spot 汇总其参与的 local grids 和唯一最近 grid。
+# - grid_spot_summary.csv：按 grid 汇总其 local spots 和 partition spots。
+# - grid_local_spot_membership.csv / grid_partition_membership.csv：grid-spot 明细表。
+# - output/11_lsgi_gradient/arrow_tables/cell_component_arrows_by_grid.csv：按 grid 排列的完整 arrow 明细。
 script_file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(script_file_arg) > 0) dirname(normalizePath(sub("^--file=", "", script_file_arg[[1]]), winslash = "/", mustWork = FALSE)) else normalizePath(getwd(), winslash = "/", mustWork = FALSE)
 source(file.path(script_dir, "00_config.R"))
-load_required_packages(c("Seurat", "readr", "dplyr", "tibble", "ggplot2", "png", "grid", "viridis", "ComplexHeatmap", "reshape2"))
+load_required_packages(c("Seurat", "readr", "dplyr", "tibble", "ggplot2", "png", "grid", "viridis", "ComplexHeatmap", "reshape2", "magrittr"))
 
-# 支持 --key=value 形式命令行参数，用于临时覆盖 LSGI 网格、R2 阈值、箭头样式等。
 parse_cli_options <- function(args) {
   opts <- list()
   for (arg in args) {
@@ -46,20 +41,31 @@ cli_opts <- parse_cli_options(commandArgs(trailingOnly = TRUE))
 out_dir <- file.path(paths$output, "11_lsgi_gradient")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-# LSGI 作为外部方法源码放在项目根目录的 LSGI-master 下。
-lsgi_root <- normalizePath(file.path(script_dir, "..", "LSGI-master"), winslash = "/", mustWork = TRUE)
-lsgi_script <- file.path(lsgi_root, "R", "LSGI.R")
-if (!file.exists(lsgi_script)) {
-  stop("Cannot find LSGI source script: ", lsgi_script, call. = FALSE)
+lsgi_root_candidates <- c(
+  file.path(script_dir, "..", "LSGI-master"),
+  file.path(script_dir, "..", "Cottrazm-main", "LSGI-master")
+)
+lsgi_root <- NULL
+for (candidate in lsgi_root_candidates) {
+  candidate_norm <- normalizePath(candidate, winslash = "/", mustWork = FALSE)
+  if (dir.exists(candidate_norm) && file.exists(file.path(candidate_norm, "R", "LSGI.R"))) {
+    lsgi_root <- candidate_norm
+    break
+  }
 }
+if (is.null(lsgi_root)) {
+  stop(
+    "Cannot find LSGI source directory. Tried: ",
+    paste(normalizePath(lsgi_root_candidates, winslash = "/", mustWork = FALSE), collapse = ", "),
+    call. = FALSE
+  )
+}
+lsgi_script <- file.path(lsgi_root, "R", "LSGI.R")
 
-# LSGI 内部需要 balanced_clustering；若 anticlust 不存在，就用 kmeans fallback 保证可运行。
 if (requireNamespace("anticlust", quietly = TRUE)) {
   suppressPackageStartupMessages(library(anticlust))
-  grid_clustering_backend <- "anticlust::balanced_clustering"
+  grid_clustering_backend <- paste0("anticlust::balanced_clustering ", as.character(utils::packageVersion("anticlust")))
 } else {
-  # LSGI calls balanced_clustering() inside get.grid.coords(). This fallback keeps
-  # the adapter runnable when the optional anticlust dependency is unavailable.
   balanced_clustering <- function(x, K) {
     x <- as.data.frame(x)
     K <- max(1L, min(as.integer(K), nrow(x)))
@@ -73,7 +79,6 @@ if (requireNamespace("anticlust", quietly = TRUE)) {
 }
 source(lsgi_script)
 
-# 读取边界结果和反卷积比例，并把 Seurat 图像坐标整理为低分辨率图上的 X/Y。
 TumorST <- readr::read_rds(file.path(paths$intermediate, "05_TumorST_boundary_defined.rds.gz"))
 DeconData <- readr::read_rds(file.path(paths$intermediate, "07_DeconData.rds.gz"))
 
@@ -88,18 +93,18 @@ image_coordinates <- tryCatch(
     coords <- Seurat::GetTissueCoordinates(TumorST)
     rownames(coords) <- coords$cell
     data.frame(
-      row = coords$y,
-      col = coords$x,
-      imagerow = coords$y,
-      imagecol = coords$x,
+      row = coords$x,
+      col = coords$y,
+      imagerow = coords$x,
+      imagecol = coords$y,
       row.names = coords$cell
     )
   }
 )
 
 scale_factor <- TumorST@images[[slice]]@scale.factors$lowres %||% 1
-spatial_df <- image_coordinates |>
-  tibble::rownames_to_column("cell_ID") |>
+spatial_df <- image_coordinates %>%
+  tibble::rownames_to_column("cell_ID") %>%
   dplyr::mutate(
     X = imagecol * scale_factor,
     Y = imagerow * scale_factor,
@@ -115,7 +120,6 @@ if (nrow(spatial_df) < 10 || nrow(DeconData) != nrow(spatial_df)) {
   stop("Too few matched spots between boundary object and deconvolution matrix.", call. = FALSE)
 }
 
-# LSGI 输入：spatial_coords 是 spot 的二维空间位置，embeddings 是每个 spot 的细胞组分比例。
 spatial_coords <- spatial_df[, c("X", "Y"), drop = FALSE]
 rownames(spatial_coords) <- spatial_df$cell_ID
 
@@ -127,7 +131,6 @@ if (ncol(embeddings) < 1) {
   stop("No non-zero cell-component columns found in 07_DeconData.rds.gz.", call. = FALSE)
 }
 
-# LSGI 参数可来自命令行，也可来自 00_config.R 的 params$lsgi_*，否则使用默认值。
 n_grids_scale <- as.numeric(get_opt(cli_opts, "n-grids-scale", default = params$lsgi_n_grids_scale %||% 10))
 n_cells_per_meta <- as.numeric(get_opt(cli_opts, "n-cells-per-meta", default = params$lsgi_n_cells_per_meta %||% min(50, nrow(spatial_coords))))
 r_squared_thresh <- as.numeric(get_opt(cli_opts, "r-squared-thresh", default = params$lsgi_r_squared_thresh %||% 0.3))
@@ -139,10 +142,11 @@ arrow_closed <- as_bool(get_opt(cli_opts, "arrow-closed", default = params$lsgi_
 reuse_lsgi <- as_bool(get_opt(cli_opts, "reuse-lsgi", default = FALSE))
 arrow_type <- if (arrow_closed) "closed" else "open"
 
-# local.traj.preprocessing 是 LSGI 的耗时预处理，可缓存复用。
 lsgi_result_path <- file.path(paths$intermediate, "11_lsgi_cell_component_result.rds.gz")
+did_reuse_lsgi <- FALSE
 if (reuse_lsgi && file.exists(lsgi_result_path)) {
   lsgi_res <- readr::read_rds(lsgi_result_path)
+  did_reuse_lsgi <- TRUE
 } else {
   lsgi_res <- local.traj.preprocessing(
     spatial_coords = spatial_coords,
@@ -152,22 +156,147 @@ if (reuse_lsgi && file.exists(lsgi_result_path)) {
   )
   readr::write_rds(lsgi_res, lsgi_result_path, compress = "gz")
 }
-utils::write.csv(lsgi_res$grid.info, file.path(out_dir, "grid_info.csv"), row.names = FALSE)
 
-# get.ind.rsqrs 估计每个局部网格中各细胞组分梯度方向，并用 R2 衡量线性趋势强度。
+grid_ids <- paste0("grid_", seq_len(nrow(lsgi_res$grid.info)))
+dist_to_grid <- as.matrix(lsgi_res$dist.to.grid)
+rownames(dist_to_grid) <- rownames(spatial_coords)
+colnames(dist_to_grid) <- grid_ids
+
+spot_base_df <- spatial_df %>%
+  dplyr::left_join(DeconData, by = "cell_ID")
+
+grid_info_df <- lsgi_res$grid.info %>%
+  tibble::as_tibble() %>%
+  dplyr::mutate(
+    grid = grid_ids,
+    grid_index = seq_len(dplyr::n())
+  ) %>%
+  dplyr::select(grid, grid_index, X, Y, vx, vy, R_squared, Assignment, qsum, sf, vx.u, vy.u)
+utils::write.csv(grid_info_df, file.path(out_dir, "grid_info.csv"), row.names = FALSE)
+
+grid_palette <- setNames(
+  grDevices::rainbow(length(grid_ids), s = 0.7, v = 0.9, end = if (length(grid_ids) > 1) 0.95 else 0.01),
+  grid_ids
+)
+
+grid_centers_df <- grid_info_df %>%
+  dplyr::transmute(
+    grid,
+    grid_center_X = X,
+    grid_center_Y = Y
+  )
+
+local_membership_list <- vector("list", length(grid_ids))
+for (i in seq_along(grid_ids)) {
+  cells <- lsgi_res$local.linear.info$cell[[i]]
+  local_membership_list[[i]] <- tibble::tibble(
+    grid = grid_ids[i],
+    cell_ID = cells,
+    local_rank = seq_along(cells),
+    dist_to_grid = as.numeric(dist_to_grid[cells, i])
+  )
+}
+
+local_membership_df <- dplyr::bind_rows(local_membership_list) %>%
+  dplyr::left_join(spot_base_df[, c("cell_ID", "X", "Y", "Location"), drop = FALSE], by = "cell_ID") %>%
+  dplyr::left_join(grid_centers_df, by = "grid") %>%
+  dplyr::arrange(grid, local_rank)
+utils::write.csv(local_membership_df, file.path(out_dir, "grid_local_spot_membership.csv"), row.names = FALSE)
+
+nearest_idx <- max.col(-dist_to_grid, ties.method = "first")
+partition_df <- tibble::tibble(
+  cell_ID = rownames(dist_to_grid),
+  nearest_grid = grid_ids[nearest_idx],
+  nearest_grid_distance = dist_to_grid[cbind(seq_len(nrow(dist_to_grid)), nearest_idx)]
+) %>%
+  dplyr::left_join(spot_base_df[, c("cell_ID", "X", "Y", "Location"), drop = FALSE], by = "cell_ID") %>%
+  dplyr::left_join(grid_centers_df, by = c("nearest_grid" = "grid")) %>%
+  dplyr::arrange(nearest_grid, cell_ID)
+utils::write.csv(partition_df, file.path(out_dir, "grid_partition_membership.csv"), row.names = FALSE)
+
+spot_membership_summary <- local_membership_df %>%
+  dplyr::group_by(cell_ID) %>%
+  dplyr::summarise(
+    local_grid_count = dplyr::n(),
+    local_grids = paste(grid, collapse = ";"),
+    local_grid_ranks = paste(local_rank, collapse = ";"),
+    .groups = "drop"
+  )
+
+spot_table_df <- spot_base_df %>%
+  dplyr::left_join(spot_membership_summary, by = "cell_ID") %>%
+  dplyr::left_join(partition_df[, c("cell_ID", "nearest_grid", "nearest_grid_distance", "grid_center_X", "grid_center_Y"), drop = FALSE], by = "cell_ID") %>%
+  dplyr::mutate(
+    local_grid_count = ifelse(is.na(local_grid_count), 0L, local_grid_count),
+    local_grids = dplyr::coalesce(local_grids, ""),
+    local_grid_ranks = dplyr::coalesce(local_grid_ranks, "")
+  )
+utils::write.csv(spot_table_df, file.path(out_dir, "spot_grid_membership.csv"), row.names = FALSE)
+
+grid_local_summary <- local_membership_df %>%
+  dplyr::group_by(grid) %>%
+  dplyr::summarise(
+    n_local_spots = dplyr::n(),
+    local_spots = paste(cell_ID, collapse = ";"),
+    .groups = "drop"
+  )
+
+grid_partition_summary <- partition_df %>%
+  dplyr::group_by(nearest_grid) %>%
+  dplyr::summarise(
+    n_partition_spots = dplyr::n(),
+    partition_spots = paste(cell_ID, collapse = ";"),
+    .groups = "drop"
+  ) %>%
+  dplyr::rename(grid = nearest_grid)
+
+grid_table_df <- grid_info_df %>%
+  dplyr::left_join(grid_local_summary, by = "grid") %>%
+  dplyr::left_join(grid_partition_summary, by = "grid") %>%
+  dplyr::mutate(
+    n_local_spots = ifelse(is.na(n_local_spots), 0L, n_local_spots),
+    local_spots = dplyr::coalesce(local_spots, ""),
+    n_partition_spots = ifelse(is.na(n_partition_spots), 0L, n_partition_spots),
+    partition_spots = dplyr::coalesce(partition_spots, "")
+  )
+utils::write.csv(grid_table_df, file.path(out_dir, "grid_spot_summary.csv"), row.names = FALSE)
+
 lin_res <- get.ind.rsqrs(lsgi_res)
 lin_res <- stats::na.omit(lin_res)
-arrow_df <- lin_res[lin_res$rsquared > r_squared_thresh, , drop = FALSE]
-if (nrow(arrow_df) > 0) {
-  arrow_df <- arrow_df |>
-    dplyr::group_by(fctr) |>
-    dplyr::filter(dplyr::n() >= minimum_fctr) |>
-    dplyr::ungroup() |>
-    as.data.frame()
-}
+
+pass_count_df <- lin_res %>%
+  dplyr::filter(rsquared > r_squared_thresh) %>%
+  dplyr::count(fctr, name = "n_grids_passing_r_squared")
+
+all_arrow_df <- lin_res %>%
+  dplyr::left_join(pass_count_df, by = "fctr") %>%
+  dplyr::mutate(
+    n_grids_passing_r_squared = ifelse(is.na(n_grids_passing_r_squared), 0L, n_grids_passing_r_squared),
+    component = fctr,
+    raw_length = sqrt(vx^2 + vy^2),
+    scaled_length = sqrt(vx.u^2 + vy.u^2),
+    passes_r_squared = rsquared > r_squared_thresh,
+    passes_minimum_fctr = n_grids_passing_r_squared >= minimum_fctr,
+    included_in_filtered_output = passes_r_squared & passes_minimum_fctr
+  ) %>%
+  dplyr::arrange(grid, component)
+
+arrow_dir <- file.path(out_dir, "arrow_tables")
+dir.create(arrow_dir, recursive = TRUE, showWarnings = FALSE)
+utils::write.csv(
+  all_arrow_df[, c(
+    "grid", "component", "X", "Y", "vx", "vy", "rsquared", "raw_length",
+    "sf", "vx.u", "vy.u", "scaled_length",
+    "passes_r_squared", "passes_minimum_fctr", "included_in_filtered_output"
+  )],
+  file.path(arrow_dir, "cell_component_arrows_by_grid.csv"),
+  row.names = FALSE
+)
+
+arrow_df <- all_arrow_df[all_arrow_df$included_in_filtered_output, c("vx", "vy", "rsquared", "component", "grid", "X", "Y", "qsum", "sf", "vx.u", "vy.u"), drop = FALSE]
+colnames(arrow_df)[colnames(arrow_df) == "component"] <- "fctr"
 utils::write.csv(arrow_df, file.path(out_dir, "cell_component_gradient_arrows.csv"), row.names = FALSE)
 
-# 组分梯度之间的距离/相似性矩阵，用热图展示不同细胞组分空间变化是否同向。
 dist_mat <- tryCatch(
   avg.dist.calc(lsgi_res, r_squared_thresh = r_squared_thresh, minimum.fctr = minimum_fctr),
   error = function(e) {
@@ -183,19 +312,18 @@ if (!is.null(dist_mat) && nrow(dist_mat) > 0) {
 }
 
 boundary_cols <- c(Mal = "#CB181D", Bdy = "#1f78b4", nMal = "#fdb462")
-point_df <- spatial_df |>
+point_df <- spot_base_df %>%
   dplyr::mutate(Location = factor(Location, levels = names(boundary_cols)))
 
 arrow_plot_df <- arrow_df
 if (nrow(arrow_plot_df) > 0) {
-  arrow_plot_df <- arrow_plot_df |>
+  arrow_plot_df <- arrow_plot_df %>%
     dplyr::mutate(
       X_end = X + vx.u * arrow_length_scale,
       Y_end = Y + vy.u * arrow_length_scale
     )
 }
 
-# 把筛选后的 LSGI 梯度箭头叠加到已有 ggplot 边界图上。
 add_gradient_arrows <- function(p, arrow_data = arrow_plot_df) {
   if (nrow(arrow_data) == 0) {
     return(p + ggplot2::labs(subtitle = paste0("No component gradients passed R2 > ", r_squared_thresh)))
@@ -218,7 +346,6 @@ add_gradient_arrows <- function(p, arrow_data = arrow_plot_df) {
     ggplot2::labs(color = "LSGI component")
 }
 
-# 1) 不带 H&E 背景的边界 + 梯度箭头图。
 boundary_base <- ggplot2::ggplot(point_df, ggplot2::aes(x = X, y = Y, fill = Location)) +
   ggplot2::geom_point(shape = 21, size = 1.8, stroke = 0.1, color = "grey25", alpha = 0.9) +
   ggplot2::scale_fill_manual(values = boundary_cols, drop = FALSE) +
@@ -236,9 +363,9 @@ ggplot2::ggsave(
   height = 7
 )
 
-# 2) H&E 背景上的边界 + 梯度箭头图。
 img_path <- file.path(paths$spaceranger, "spatial", "tissue_lowres_image.png")
-if (file.exists(img_path)) {
+has_image <- file.exists(img_path)
+if (has_image) {
   img <- png::readPNG(img_path)
   img_grob <- grid::rasterGrob(
     img,
@@ -246,11 +373,11 @@ if (file.exists(img_path)) {
     width = grid::unit(1, "npc"),
     height = grid::unit(1, "npc")
   )
-  point_df_he <- point_df |>
+  point_df_he <- point_df %>%
     dplyr::mutate(Y = -Y)
   arrow_plot_df_he <- arrow_plot_df
   if (nrow(arrow_plot_df_he) > 0) {
-    arrow_plot_df_he <- arrow_plot_df_he |>
+    arrow_plot_df_he <- arrow_plot_df_he %>%
       dplyr::mutate(
         Y = -Y,
         Y_end = -Y_end
@@ -294,7 +421,6 @@ if (file.exists(img_path)) {
   )
 }
 
-# 3) LSGI 自带的纯梯度图，便于和 adapter 绘图对照。
 grDevices::pdf(file.path(out_dir, "cell_component_gradients_plain_lsgi.pdf"), width = 8, height = 7)
 print(plt.factors.gradient.ind(
   info = lsgi_res,
@@ -304,10 +430,170 @@ print(plt.factors.gradient.ind(
 ) + ggplot2::ggtitle("LSGI cell-component gradients"))
 grDevices::dev.off()
 
-# 记录本次参数、匹配 spot 数和主要输出，方便复现实验设置。
-sink(file.path(out_dir, "run_summary.txt"))
-cat("Cottrazm + LSGI cell-component gradient analysis\n")
-cat("================================================\n\n")
+partition_plot <- ggplot2::ggplot(partition_df, ggplot2::aes(x = X, y = Y, color = nearest_grid)) +
+  ggplot2::geom_point(size = 1.6, alpha = 0.9) +
+  ggplot2::geom_point(
+    data = grid_info_df,
+    ggplot2::aes(x = X, y = Y),
+    inherit.aes = FALSE,
+    shape = 4,
+    size = 1.8,
+    stroke = 0.8,
+    color = "black"
+  ) +
+  ggplot2::scale_color_manual(values = grid_palette, guide = "none") +
+  ggplot2::scale_y_reverse() +
+  ggplot2::coord_fixed() +
+  ggplot2::theme_void() +
+  ggplot2::ggtitle(paste0(sample_name, " grid partition (nearest-grid assignment)"))
+ggplot2::ggsave(file.path(out_dir, "grid_partition.pdf"), partition_plot, width = 8, height = 7)
+
+if (has_image) {
+  partition_df_he <- partition_df %>%
+    dplyr::mutate(Y = -Y)
+  grid_info_he <- grid_info_df %>%
+    dplyr::mutate(Y = -Y)
+  partition_overlay_plot <- ggplot2::ggplot() +
+    ggplot2::annotation_custom(
+      grob = img_grob,
+      xmin = 0,
+      xmax = ncol(img),
+      ymin = -nrow(img),
+      ymax = 0
+    ) +
+    ggplot2::geom_point(
+      data = partition_df_he,
+      ggplot2::aes(x = X, y = Y, color = nearest_grid),
+      size = 1.6,
+      alpha = 0.88
+    ) +
+    ggplot2::geom_point(
+      data = grid_info_he,
+      ggplot2::aes(x = X, y = Y),
+      inherit.aes = FALSE,
+      shape = 4,
+      size = 1.8,
+      stroke = 0.8,
+      color = "black"
+    ) +
+    ggplot2::scale_color_manual(values = grid_palette, guide = "none") +
+    ggplot2::coord_fixed(
+      ratio = 1,
+      xlim = c(0, ncol(img)),
+      ylim = c(-nrow(img), 0),
+      expand = FALSE,
+      clip = "on"
+    ) +
+    ggplot2::theme_void() +
+    ggplot2::ggtitle(paste0(sample_name, " grid partition overlay"))
+  ggplot2::ggsave(file.path(out_dir, "grid_partition_overlay.pdf"), partition_overlay_plot, width = 8, height = 7)
+} else {
+  ggplot2::ggsave(file.path(out_dir, "grid_partition_overlay.pdf"), partition_plot, width = 8, height = 7)
+}
+
+make_local_plot <- function(grid_id, overlay = FALSE) {
+  local_df <- local_membership_df[local_membership_df$grid == grid_id, , drop = FALSE]
+  center_df <- grid_info_df[grid_info_df$grid == grid_id, , drop = FALSE]
+  grid_color <- grid_palette[[grid_id]]
+  title_text <- paste0(sample_name, " ", grid_id, " local spots (n=", nrow(local_df), ", component=", as.character(center_df$Assignment[1]), ")")
+
+  if (!overlay || !has_image) {
+    return(
+      ggplot2::ggplot() +
+        ggplot2::geom_point(
+          data = point_df,
+          ggplot2::aes(x = X, y = Y),
+          color = "grey82",
+          size = 1.3,
+          alpha = 0.65
+        ) +
+        ggplot2::geom_point(
+          data = local_df,
+          ggplot2::aes(x = X, y = Y),
+          color = grid_color,
+          size = 1.9,
+          alpha = 0.95
+        ) +
+        ggplot2::geom_point(
+          data = center_df,
+          ggplot2::aes(x = X, y = Y),
+          inherit.aes = FALSE,
+          shape = 4,
+          size = 2.3,
+          stroke = 0.9,
+          color = "black"
+        ) +
+        ggplot2::scale_y_reverse() +
+        ggplot2::coord_fixed() +
+        ggplot2::theme_void() +
+        ggplot2::ggtitle(if (overlay && !has_image) paste0(title_text, " overlay") else title_text)
+    )
+  }
+
+  local_df_he <- local_df %>%
+    dplyr::mutate(Y = -Y)
+  center_df_he <- center_df %>%
+    dplyr::mutate(Y = -Y)
+  point_df_he <- point_df %>%
+    dplyr::mutate(Y = -Y)
+
+  ggplot2::ggplot() +
+    ggplot2::annotation_custom(
+      grob = img_grob,
+      xmin = 0,
+      xmax = ncol(img),
+      ymin = -nrow(img),
+      ymax = 0
+    ) +
+    ggplot2::geom_point(
+      data = point_df_he,
+      ggplot2::aes(x = X, y = Y),
+      color = "grey82",
+      size = 1.2,
+      alpha = 0.55
+    ) +
+    ggplot2::geom_point(
+      data = local_df_he,
+      ggplot2::aes(x = X, y = Y),
+      color = grid_color,
+      size = 1.9,
+      alpha = 0.95
+    ) +
+    ggplot2::geom_point(
+      data = center_df_he,
+      ggplot2::aes(x = X, y = Y),
+      inherit.aes = FALSE,
+      shape = 4,
+      size = 2.3,
+      stroke = 0.9,
+      color = "black"
+    ) +
+    ggplot2::coord_fixed(
+      ratio = 1,
+      xlim = c(0, ncol(img)),
+      ylim = c(-nrow(img), 0),
+      expand = FALSE,
+      clip = "on"
+    ) +
+    ggplot2::theme_void() +
+    ggplot2::ggtitle(paste0(title_text, " overlay"))
+}
+
+grDevices::pdf(file.path(out_dir, "grid_local_spots.pdf"), width = 8, height = 7)
+for (grid_id in grid_ids) {
+  print(make_local_plot(grid_id, overlay = FALSE))
+}
+grDevices::dev.off()
+
+grDevices::pdf(file.path(out_dir, "grid_local_spots_overlay.pdf"), width = 8, height = 7)
+for (grid_id in grid_ids) {
+  print(make_local_plot(grid_id, overlay = TRUE))
+}
+grDevices::dev.off()
+
+sink(file.path(out_dir, "run_summary_11b.txt"))
+cat("Cottrazm + LSGI detailed grid-membership analysis\n")
+cat("=================================================\n\n")
 cat("Sample:", sample_name, "\n")
 cat("Matched spots:", nrow(spatial_coords), "\n")
 cat("Cell components:", paste(colnames(embeddings), collapse = ", "), "\n")
@@ -316,18 +602,26 @@ cat("n.grids.scale:", n_grids_scale, "\n")
 cat("n.cells.per.meta:", n_cells_per_meta, "\n")
 cat("R-squared threshold:", r_squared_thresh, "\n")
 cat("Minimum arrows per component:", minimum_fctr, "\n")
-cat("Selected gradient arrows:", nrow(arrow_df), "\n\n")
+cat("Selected gradient arrows:", nrow(arrow_df), "\n")
+cat("Generated grids:", nrow(grid_info_df), "\n")
+cat("H&E overlay available:", has_image, "\n\n")
 cat("Arrow length scale:", arrow_length_scale, "\n")
 cat("Arrow linewidth:", arrow_linewidth, "\n")
-cat("Arrow head cm:", arrow_head_cm, "\n\n")
+cat("Arrow head cm:", arrow_head_cm, "\n")
 cat("Arrow closed:", arrow_closed, "\n")
-cat("Reused LSGI result:", reuse_lsgi && file.exists(lsgi_result_path), "\n\n")
+cat("Reused LSGI result:", did_reuse_lsgi, "\n\n")
 cat("Outputs:\n")
 cat("- intermediate/11_lsgi_cell_component_result.rds.gz\n")
 cat("- output/11_lsgi_gradient/grid_info.csv\n")
-cat("- output/11_lsgi_gradient/cell_component_gradient_arrows.csv\n")
-cat("- output/11_lsgi_gradient/", sample_name, "_BoundaryDefine_LSGIGradient.pdf\n", sep = "")
-cat("- output/11_lsgi_gradient/", sample_name, "_BoundaryDefine_HE_LSGIGradient.pdf\n", sep = "")
+cat("- output/11_lsgi_gradient/spot_grid_membership.csv\n")
+cat("- output/11_lsgi_gradient/grid_spot_summary.csv\n")
+cat("- output/11_lsgi_gradient/grid_local_spot_membership.csv\n")
+cat("- output/11_lsgi_gradient/grid_partition_membership.csv\n")
+cat("- output/11_lsgi_gradient/grid_partition.pdf\n")
+cat("- output/11_lsgi_gradient/grid_partition_overlay.pdf\n")
+cat("- output/11_lsgi_gradient/grid_local_spots.pdf\n")
+cat("- output/11_lsgi_gradient/grid_local_spots_overlay.pdf\n")
+cat("- output/11_lsgi_gradient/arrow_tables/cell_component_arrows_by_grid.csv\n")
 sink()
 
-message("Done. LSGI gradient outputs written to ", normalizePath(out_dir, winslash = "/", mustWork = FALSE), ".")
+message("Done. Detailed LSGI grid outputs written to ", normalizePath(out_dir, winslash = "/", mustWork = FALSE), ".")

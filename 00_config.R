@@ -2,7 +2,7 @@
 # 本脚本不产生生物学结果；它负责固定随机种子、定位 scripts_format_R 根目录、
 # 创建 input/intermediate/output/resources/lib 等目录，并集中管理所有主脚本共享的参数。
 # input/<样本名>/ 存放输入；intermediate/<样本名>/ 通常存放下一步真正读取的
-# RDS/TSV 中间结果；output/<样本名>/ 主要存放人工检查图表和表格。
+# RDS/TSV 中间结果；output/<样本名>/ 存放图表、表格和可直接用于下游分析的结构化结果矩阵。
 options(stringsAsFactors = FALSE)
 set.seed(666)
 
@@ -21,8 +21,17 @@ script_dir <- if (!is.null(script_file)) {
 } else {
   normalizePath(getwd(), winslash = "/", mustWork = FALSE)
 }
+if (!basename(script_dir) == "scripts_format_R") {
+  script_dir <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+}
 
 sample_name <- Sys.getenv("COTTRAZM_SAMPLE_NAME", unset = "CRC1")
+conda_root <- Sys.getenv("COTTRAZM_CONDA_ROOT", unset = "/lulabdata3/huangkeyun/zhangys/tools/miniforge3")
+python_conda_env <- Sys.getenv("COTTRAZM_CONDA_ENV", unset = "BoundaryGrad")
+python_bin <- Sys.getenv(
+  "COTTRAZM_PYTHON",
+  unset = file.path(conda_root, "envs", python_conda_env, "bin", "python")
+)
 
 # 所有路径均相对 scripts_format_R。
 input_root <- file.path(script_dir, "input")
@@ -44,17 +53,102 @@ paths <- list(
 
 invisible(lapply(c(input_root, intermediate_root, output_root, unlist(paths)), dir.create, recursive = TRUE, showWarnings = FALSE))
 
+env_chr <- function(name, default = NULL) {
+  value <- Sys.getenv(name, unset = "")
+  if (identical(value, "")) default else value
+}
+
+env_num <- function(name, default) {
+  value <- Sys.getenv(name, unset = "")
+  if (identical(value, "")) {
+    return(default)
+  }
+  parsed <- suppressWarnings(as.numeric(value))
+  if (is.na(parsed)) {
+    stop(name, " must be numeric; got ", sQuote(value), call. = FALSE)
+  }
+  parsed
+}
+
+env_int <- function(name, default) {
+  value <- Sys.getenv(name, unset = "")
+  if (identical(value, "")) {
+    return(default)
+  }
+  parsed <- suppressWarnings(as.integer(value))
+  if (is.na(parsed) || parsed < 1) {
+    stop(name, " must be an integer >= 1; got ", sQuote(value), call. = FALSE)
+  }
+  parsed
+}
+
+env_chr_vec <- function(name, default = NULL) {
+  value <- Sys.getenv(name, unset = "")
+  if (identical(value, "")) {
+    return(default)
+  }
+  if (tolower(value) %in% c("null", "none", "auto")) {
+    return(NULL)
+  }
+  parsed <- trimws(strsplit(value, ",", fixed = TRUE)[[1]])
+  parsed[nzchar(parsed)]
+}
+
 # 主流程参数。修改聚类分辨率、inferCNV 线程数、反卷积细胞类型名、重构区域等，优先改这里。
 params <- list(
   cluster_resolution = 1.5,
   infercnv_assay = "Spatial",
   infercnv_threads = 30,
+  infercnv_partition_method = "random_trees",
+  infercnv_analysis_mode = "subclusters",
+  infercnv_min_counts = 100,
+  infercnv_min_features = 100,
+  infercnv_reference_fraction = 0.06,
+  infercnv_reference_min_spots = 150,
+  infercnv_reference_max_spots = 400,
+  infercnv_reference_immune_markers = c(
+    "PTPRC", "CD2", "CD3D", "CD3E", "CD3G",
+    "CD5", "CD7", "CD79A", "MS4A1", "CD19"
+  ),
+  infercnv_reference_epithelial_markers = c(
+    "EPCAM", "KRT5", "KRT7", "KRT8", "KRT14",
+    "KRT15", "KRT17", "KRT18", "KRT19"
+  ),
   cnv_k = 8,
-  python_conda_env = "cottrazm-py",
+  python_conda_env = python_conda_env,
+  python_bin = python_bin,
+  # inferCNV/CNV 聚类结果中被视为恶性肿瘤区域的标签。
+  # 这里的标签必须与上游 CNVLabel/CNV cluster 结果中的字符标签完全一致。
+  # 默认设为 NULL，表示不在 00_config.R 中写死标签；05_define_boundary.R 会根据
+  # 每个 CNVLabel 的 cnv_score 中位数自动选出最高的 2 个有效 Observation 标签。
+  # 注意：CNVLabel 的数字编号本身通常只是聚类编号，不一定代表恶性程度高低；
+  # 因此自动选择依据是 cnv_score，而不是简单取数值最大的 label 名。
+  # 如果已经人工复核过 CNV 空间分布、marker 表达和组织形态，也可以手动改为
+  # c("6", "8") 这类明确标签，覆盖自动选择。
   malignant_cnv_labels = NULL,
+  boundary_run_id = env_chr("COTTRAZM_BOUNDARY_RUN_ID", NULL),
+  # 边界识别步骤专用的恶性 CNV 标签。
+  # 默认同样设为 NULL，使 05_define_boundary.R 自动从 cnv_score 最高的 2 个
+  # CNVLabel 生成恶性种子。也可以通过环境变量 COTTRAZM_BOUNDARY_MALIGNANT_CNV_LABELS
+  # 覆盖，例如 "6,8"；若设为 "null"、"none" 或 "auto"，会返回 NULL 并保持自动选择。
+  boundary_malignant_cnv_labels = env_chr_vec("COTTRAZM_BOUNDARY_MALIGNANT_CNV_LABELS", NULL),
+  boundary_mal_cluster_fraction = env_num("COTTRAZM_BOUNDARY_MAL_CLUSTER_FRACTION", 0.3),
+  boundary_umap_mal_ratio = env_num("COTTRAZM_BOUNDARY_UMAP_MAL_RATIO", 0.5),
+  boundary_expand_mal_radius = env_num("COTTRAZM_BOUNDARY_EXPAND_MAL_RADIUS", 1.0),
+  boundary_max_rounds = env_int("COTTRAZM_BOUNDARY_MAX_ROUNDS", 6),
+  # 反卷积矩阵或单细胞注释中代表恶性上皮细胞的细胞类型名称。
+  # 该名称必须与 07_spatial_deconvolution.R 读取到的细胞类型列名/注释名完全一致；
+  # 如果输入数据使用 "Malignant"、"Tumor epithelial" 等其他命名，需要在这里同步修改。
   decon_malignant_cluster = "Malignant epithelial cells",
+  # 反卷积中用于表示非恶性/总体上皮组织成分的细胞类型名称。
+  # 下游会用它和恶性上皮、基质成分一起构建空间组成结果；名称不匹配会导致对应成分缺失。
   decon_tissue_cluster = "Epithelial cells",
+  # 反卷积中代表基质细胞的细胞类型名称，默认使用成纤维细胞。
+  # 如果单细胞参考中基质细胞被命名为 "Fibroblasts"、"CAF" 或其他标签，需要改成实际名称。
   decon_stromal_cluster = "Fibroblast cells",
+  # 空间重构步骤选取的 Location 区域。
+  # 默认只重构边界区域 Bdy；该值必须存在于 TumorST@meta.data$Location 中。
+  # 若需要同时分析多个区域，可改为字符向量，例如 c("Bdy", "Tumor")。
   recon_locations = "Bdy",
   diff_assay = "Spatial",
   diff_logfc_cutoff = 0.25,

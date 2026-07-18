@@ -7,7 +7,8 @@
 # - intermediate/07_DeconData.rds.gz：data.frame，第一列 cell_ID，其余列为细胞类型比例；08/10/11 使用。
 # - intermediate/07_decon_inputs.rds.gz：保存反卷积中间矩阵，便于调试。
 # - intermediate/07_TumorST_for_decon.rds.gz：NormalizeData 后、带 Decon_topics 的对象。
-# - output/07_spatial_deconvolution/DeconData.xlsx：反卷积结果的 Excel 版本。
+# - output/<样本名>/07_spatial_deconvolution/DeconData.xlsx：反卷积结果的 Excel 版本。
+# - output/<样本名>/07_spatial_deconvolution/spot_matrix_pre_lsgi.csv：每个 spot 一行，含坐标、边界归属和反卷积结果。
 script_file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(script_file_arg) > 0) dirname(normalizePath(sub("^--file=", "", script_file_arg[[1]]), winslash = "/", mustWork = FALSE)) else normalizePath(getwd(), winslash = "/", mustWork = FALSE)
 source(file.path(script_dir, "00_config.R"))
@@ -15,7 +16,9 @@ load_required_packages(c("Seurat", "Matrix", "Rfast", "quadprog", "data.table", 
 source(file.path(paths$lib, "decon_helpers.R"))
 
 out_dir <- file.path(paths$output, "07_spatial_deconvolution")
+spot_out_dir <- file.path(paths$output, "07_spatial_deconvolution")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(spot_out_dir, recursive = TRUE, showWarnings = FALSE)
 
 TumorST <- readr::read_rds(file.path(paths$intermediate, "05_TumorST_boundary_defined.rds.gz"))
 sig_exp <- readr::read_rds(file.path(paths$intermediate, "06_sig_exp.rds.gz"))
@@ -71,7 +74,42 @@ spot_proportion <- spot_deconvolution(
 DeconData <- as.data.frame(t(spot_proportion))
 DeconData <- tibble::rownames_to_column(DeconData, var = "cell_ID")
 
+slice <- names(TumorST@images)[1]
+if (is.na(slice) || !nzchar(slice)) {
+  stop("TumorST does not contain a spatial image slot.", call. = FALSE)
+}
+
+image_coordinates <- tryCatch(
+  data.frame(TumorST@images[[slice]]@coordinates),
+  error = function(e) {
+    coords <- Seurat::GetTissueCoordinates(TumorST)
+    rownames(coords) <- coords$cell
+    data.frame(
+      row = coords$x,
+      col = coords$y,
+      imagerow = coords$x,
+      imagecol = coords$y,
+      row.names = coords$cell
+    )
+  }
+)
+
+if (!all(c("imagerow", "imagecol") %in% colnames(image_coordinates))) {
+  stop("Failed to extract imagerow/imagecol coordinates from TumorST.", call. = FALSE)
+}
+
+spot_matrix <- image_coordinates |>
+  tibble::rownames_to_column("cell_ID") |>
+  dplyr::transmute(
+    cell_ID = cell_ID,
+    X = as.numeric(imagecol),
+    Y = as.numeric(imagerow),
+    Location = TumorST@meta.data$Location[match(cell_ID, rownames(TumorST@meta.data))]
+  ) |>
+  dplyr::left_join(DeconData, by = "cell_ID")
+
 readr::write_rds(TumorST, file.path(paths$intermediate, "07_TumorST_for_decon.rds.gz"), compress = "gz")
 readr::write_rds(list(filter_sig = filter_sig, filter_expr = filter_expr, filter_log_expr = filter_log_expr, enrich_matrix = enrich_matrix, enrich_result = enrich_result, meta_data = meta_data), file.path(paths$intermediate, "07_decon_inputs.rds.gz"), compress = "gz")
 readr::write_rds(DeconData, file.path(paths$intermediate, "07_DeconData.rds.gz"), compress = "gz")
 openxlsx::write.xlsx(DeconData, file.path(out_dir, "DeconData.xlsx"), overwrite = TRUE)
+readr::write_csv(spot_matrix, file.path(spot_out_dir, "spot_matrix_pre_lsgi.csv"))

@@ -16,8 +16,13 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 TumorST <- readr::read_rds(file.path(paths$intermediate, "01_TumorST_preprocessed.rds.gz"))
 
-# 通过 reticulate 调 Python/stLearn 生成 SME 形态校正矩阵；结果缓存为 MatrixMarket，避免重复切图。
-reticulate::use_condaenv(params$python_conda_env, required = TRUE)
+# 通过 reticulate 调 Python/stLearn 生成 SME 形态校正矩阵；优先绑定统一环境中的 python，
+# 这样即使当前 shell 没有先 conda activate，R 版流程也能稳定找到 stlearn。
+if (file.exists(params$python_bin)) {
+  reticulate::use_python(params$python_bin, required = TRUE)
+} else {
+  reticulate::use_condaenv(params$python_conda_env, required = TRUE)
+}
 reticulate::source_python(file.path(paths$resources, "python", "Rusedtile.py"))
 sme_mtx_file <- file.path(out_dir, paste0(sample_name, "_raw_SME_normalizeA.mtx"))
 Adjusted_expr_mtx <- if (file.exists(sme_mtx_file)) {

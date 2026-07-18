@@ -49,10 +49,10 @@ if (file.exists(img_path)) {
       coords <- Seurat::GetTissueCoordinates(TumorST)
       rownames(coords) <- coords$cell
       data.frame(
-        row = coords$y,
-        col = coords$x,
-        imagerow = coords$y,
-        imagecol = coords$x,
+        row = coords$x,
+        col = coords$y,
+        imagerow = coords$x,
+        imagecol = coords$y,
         row.names = coords$cell
       )
     }
@@ -61,19 +61,17 @@ if (file.exists(img_path)) {
     tibble::rownames_to_column("cell_ID") |>
     dplyr::mutate(
       imagerow_scaled = imagerow * TumorST@images[[slice]]@scale.factors$lowres,
-      imagecol_scaled = imagecol * TumorST@images[[slice]]@scale.factors$lowres
+      imagecol_scaled = imagecol * TumorST@images[[slice]]@scale.factors$lowres,
+      imagerow_scaled_plot = -imagerow_scaled
     ) |>
     dplyr::inner_join(DeconData_sub, by = "cell_ID")
   img <- png::readPNG(img_path)
   img_grob <- grid::rasterGrob(img, interpolate = FALSE, width = grid::unit(1, "npc"), height = grid::unit(1, "npc"))
   pieplot <- ggplot2::ggplot() +
     ggplot2::annotation_custom(grob = img_grob, xmin = 0, xmax = ncol(img), ymin = 0, ymax = -nrow(img)) +
-    scatterpie::geom_scatterpie(data = spatial_coord, ggplot2::aes(x = imagecol_scaled, y = imagerow_scaled), cols = plot_col, color = params$pie_border_color, alpha = params$scatterpie_alpha, pie_scale = params$pie_scale, lwd = 0.1) +
-    ggplot2::scale_y_reverse() +
-    ggplot2::ylim(nrow(img), 0) +
-    ggplot2::xlim(0, ncol(img)) +
+    scatterpie::geom_scatterpie(data = spatial_coord, ggplot2::aes(x = imagecol_scaled, y = imagerow_scaled_plot), cols = plot_col, color = params$pie_border_color, alpha = params$scatterpie_alpha, pie_scale = params$pie_scale, lwd = 0.1) +
     ggplot2::theme_void() +
-    ggplot2::coord_fixed(ratio = 1, expand = TRUE, clip = "on")
+    ggplot2::coord_fixed(ratio = 1, xlim = c(0, ncol(img)), ylim = c(-nrow(img), 0), expand = FALSE, clip = "on")
   ggplot2::ggsave(file.path(out_dir, "DeconPieplot.pdf"), pieplot, width = 7, height = 7)
 }
 

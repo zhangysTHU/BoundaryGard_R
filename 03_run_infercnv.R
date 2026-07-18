@@ -10,11 +10,11 @@
 # 备注：COTTRAZM_FAST_CNV=1 只生成 smoke-test CNV calls，不代表真实 CNV。
 script_file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(script_file_arg) > 0) dirname(normalizePath(sub("^--file=", "", script_file_arg[[1]]), winslash = "/", mustWork = FALSE)) else normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+options(scipen = 100)
 source(file.path(script_dir, "00_config.R"))
 load_required_packages(c("Seurat", "infercnv", "readr", "ape", "dendextend"))
 
 log_step <- function(...) {
-  # 给长耗时步骤打印时间戳，便于判断卡在 inferCNV 哪个阶段。
   message(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), " | ", paste0(..., collapse = ""))
 }
 
@@ -44,8 +44,6 @@ env_flag <- function(name, default = TRUE) {
 }
 
 write_cnv_calls <- function(out_dir, TumorST, normal_cluster) {
-  # 把 inferCNV 的 HMM/subcluster 输出整理成 04 可读取的统一表格：
-  # cell_ID 为 spot barcode，CNVLabel 为离散 CNV 类别，cnv_score 为偏离中性状态的总量。
   calls_file <- file.path(paths$intermediate, "03_cnv_calls.tsv")
   obs_files <- list.files(
     out_dir,
@@ -87,7 +85,11 @@ write_cnv_calls <- function(out_dir, TumorST, normal_cluster) {
     )
     normal_cells <- rownames(TumorST@meta.data)[as.character(TumorST$seurat_clusters) == as.character(normal_cluster)]
     observation_groups <- unique(cell_groups$cell_group_name[!cell_groups$cell %in% normal_cells])
-    observation_scores <- tapply(cell_groups$cnv_score[cell_groups$cell_group_name %in% observation_groups], cell_groups$cell_group_name[cell_groups$cell_group_name %in% observation_groups], mean)
+    observation_scores <- tapply(
+      cell_groups$cnv_score[cell_groups$cell_group_name %in% observation_groups],
+      cell_groups$cell_group_name[cell_groups$cell_group_name %in% observation_groups],
+      mean
+    )
     if (length(observation_scores) > 0) {
       centers <- min(params$cnv_k, length(unique(observation_scores)))
       if (centers <= 1) {
@@ -162,7 +164,6 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 log_step("loaded object: ", nrow(TumorST@meta.data), " spots; assay=", assay)
 
 if (identical(Sys.getenv("COTTRAZM_FAST_CNV"), "1")) {
-  # smoke-test 模式用于快速测试 04-11 的文件接口是否正确。
   log_step("COTTRAZM_FAST_CNV=1 detected; writing smoke-test CNV calls")
   normal_cluster <- levels(TumorST$seurat_clusters)[order(unlist(lapply(split(TumorST@meta.data[, c("seurat_clusters", "NormalScore")], TumorST@meta.data$seurat_clusters), function(x) mean(x$NormalScore))), decreasing = TRUE)[1]]
   calls <- data.frame(
@@ -184,7 +185,6 @@ gene_order_file <- file.path(paths$resources, "gencode_v38_gene_pos.txt")
 log_step("reference cluster selected: ", normal_cluster)
 
 if (identical(Sys.getenv("COTTRAZM_INFERCNV_POSTPROCESS_ONLY"), "1")) {
-  # 只重读已有 inferCNV 输出并生成 03_cnv_calls.tsv，不重新跑 inferCNV 大计算。
   log_step("COTTRAZM_INFERCNV_POSTPROCESS_ONLY=1 detected; writing CNV calls from existing inferCNV outputs")
   ok <- write_cnv_calls(out_dir, TumorST, normal_cluster)
   quit(save = "no", status = if (isTRUE(ok)) 0 else 1)
@@ -193,14 +193,13 @@ if (identical(Sys.getenv("COTTRAZM_INFERCNV_POSTPROCESS_ONLY"), "1")) {
 checkpoint <- file.path(out_dir, "04_logtransformedHMMi6.infercnv_obj")
 use_checkpoint <- file.exists(checkpoint) && env_flag("COTTRAZM_INFERCNV_USE_CHECKPOINT", TRUE)
 if (use_checkpoint) {
-  # inferCNV 中间 checkpoint 很大；若已存在 step 04，可从 checkpoint 续跑，省去前处理。
   log_step("loading inferCNV checkpoint: ", checkpoint)
   infercnv_obj <- readRDS(checkpoint)
   log_step("checkpoint loaded: ", nrow(infercnv_obj@expr.data), " genes x ", ncol(infercnv_obj@expr.data), " cells")
   gc()
 } else {
   log_step("extracting dense count matrix for inferCNV")
-  matrix <- Seurat::GetAssayData(TumorST, layer = "counts", assay = assay) |> as.matrix()
+  matrix <- as.matrix(Seurat::GetAssayData(TumorST, layer = "counts", assay = assay))
   log_step("matrix ready: ", nrow(matrix), " genes x ", ncol(matrix), " spots")
   log_step("creating inferCNV object")
   infercnv_obj <- infercnv::CreateInfercnvObject(
@@ -225,7 +224,6 @@ Sys.setenv(
 )
 options(mc.cores = infercnv_threads, scipen = 100)
 
-# inferCNV 主计算：会做归一化、reference 校正、denoise、HMM 和 tumor subcluster。
 log_step(
   "starting infercnv::run; output dir=", out_dir,
   "; threads=", infercnv_threads,
@@ -258,5 +256,9 @@ log_step("infercnv::run completed")
 
 log_step("saving inferCNV object")
 readr::write_rds(infercnv_obj, file.path(paths$intermediate, "03_infercnv_obj.rds.gz"), compress = "gz")
-log_step("saved ", file.path(paths$intermediate, "03_infercnv_obj.rds.gz"))
-write_cnv_calls(out_dir, TumorST, normal_cluster)
+
+log_step("building CNV calls from inferCNV outputs")
+ok <- write_cnv_calls(out_dir, TumorST, normal_cluster)
+if (!isTRUE(ok)) {
+  stop("inferCNV finished, but no CNV calls could be reconstructed from output files in ", out_dir, call. = FALSE)
+}

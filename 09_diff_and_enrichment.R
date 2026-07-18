@@ -65,7 +65,23 @@ run_enrich_kegg <- function(x) {
   if (length(x) == 0) return(NULL)
   geneL <- clusterProfiler::bitr(x, fromType = "SYMBOL", toType = c("ENTREZID", "ENSEMBL"), OrgDb = "org.Hs.eg.db")
   if (nrow(geneL) == 0) return(NULL)
-  clusterProfiler::enrichKEGG(gene = geneL$ENTREZID, organism = "hsa", keyType = "kegg", pAdjustMethod = "BH", minGSSize = 3, pvalueCutoff = 0.2, qvalueCutoff = 0.2)
+  obj <- try(
+    clusterProfiler::enrichKEGG(
+      gene = geneL$ENTREZID,
+      organism = "hsa",
+      keyType = "kegg",
+      pAdjustMethod = "BH",
+      minGSSize = 3,
+      pvalueCutoff = 0.2,
+      qvalueCutoff = 0.2
+    ),
+    silent = TRUE
+  )
+  if (inherits(obj, "try-error")) {
+    warning("KEGG enrichment skipped because KEGG REST was unavailable.", call. = FALSE)
+    return(NULL)
+  }
+  obj
 }
 Enrichment <- tibble::tibble(Location = locations) |>
   dplyr::mutate(LocationDiffFeatures = purrr::map(Location, function(x) DiffGenesSig[[x]]$Symbol)) |>
