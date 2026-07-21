@@ -43,7 +43,8 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 lsgi_root_candidates <- c(
   file.path(script_dir, "..", "LSGI-master"),
-  file.path(script_dir, "..", "Cottrazm-main", "LSGI-master")
+  file.path(script_dir, "..", "Cottrazm-main", "LSGI-master"),
+  file.path(script_dir, "..", "Cottrazm-main-archived", "LSGI-master")
 )
 lsgi_root <- NULL
 for (candidate in lsgi_root_candidates) {
@@ -138,9 +139,50 @@ minimum_fctr <- as.numeric(get_opt(cli_opts, "minimum-fctr", default = params$ls
 arrow_length_scale <- as.numeric(get_opt(cli_opts, "arrow-length-scale", default = params$lsgi_arrow_length_scale %||% 1.4))
 arrow_linewidth <- as.numeric(get_opt(cli_opts, "arrow-linewidth", default = params$lsgi_arrow_linewidth %||% 1.0))
 arrow_head_cm <- as.numeric(get_opt(cli_opts, "arrow-head-cm", default = params$lsgi_arrow_head_cm %||% 0.20))
+arrow_head_angle <- as.numeric(get_opt(cli_opts, "arrow-head-angle", default = params$lsgi_arrow_head_angle %||% 30))
+arrow_head_angle_by_r2 <- as_bool(get_opt(cli_opts, "arrow-head-angle-by-r2", default = params$lsgi_arrow_head_angle_by_r2 %||% TRUE))
+arrow_head_angle_min <- as.numeric(get_opt(cli_opts, "arrow-head-angle-min", default = params$lsgi_arrow_head_angle_min %||% 22.5))
+arrow_head_angle_mid <- as.numeric(get_opt(cli_opts, "arrow-head-angle-mid", default = params$lsgi_arrow_head_angle_mid %||% arrow_head_angle))
+arrow_head_angle_max <- as.numeric(get_opt(cli_opts, "arrow-head-angle-max", default = params$lsgi_arrow_head_angle_max %||% 45))
+arrow_head_angle_r2_min <- as.numeric(get_opt(cli_opts, "arrow-head-angle-r2-min", default = params$lsgi_arrow_head_angle_r2_min %||% 0.3))
+arrow_head_angle_r2_mid <- as.numeric(get_opt(cli_opts, "arrow-head-angle-r2-mid", default = params$lsgi_arrow_head_angle_r2_mid %||% 0.5))
+arrow_head_angle_r2_max <- as.numeric(get_opt(cli_opts, "arrow-head-angle-r2-max", default = params$lsgi_arrow_head_angle_r2_max %||% 0.7))
+arrow_head_angle_step <- as.numeric(get_opt(cli_opts, "arrow-head-angle-step", default = params$lsgi_arrow_head_angle_step %||% 1))
 arrow_closed <- as_bool(get_opt(cli_opts, "arrow-closed", default = params$lsgi_arrow_closed %||% TRUE))
+arrow_length_normalization <- as.character(get_opt(
+  cli_opts,
+  "arrow-length-normalization",
+  default = params$lsgi_arrow_length_normalization %||% "global"
+))
 reuse_lsgi <- as_bool(get_opt(cli_opts, "reuse-lsgi", default = FALSE))
 arrow_type <- if (arrow_closed) "closed" else "open"
+if (!arrow_length_normalization %in% c("global", "by_component")) {
+  stop("--arrow-length-normalization must be either 'global' or 'by_component'.", call. = FALSE)
+}
+if (!is.finite(arrow_head_angle) || arrow_head_angle <= 0 || arrow_head_angle >= 180) {
+  stop("--arrow-head-angle must be a finite value between 0 and 180 degrees.", call. = FALSE)
+}
+if (arrow_head_angle_by_r2) {
+  if (
+    !all(is.finite(c(arrow_head_angle_min, arrow_head_angle_mid, arrow_head_angle_max))) ||
+      arrow_head_angle_min <= 0 ||
+      arrow_head_angle_min > arrow_head_angle_mid ||
+      arrow_head_angle_mid > arrow_head_angle_max ||
+      arrow_head_angle_max >= 180
+  ) {
+    stop("R2-mapped arrow head angles must satisfy 0 < min <= mid <= max < 180.", call. = FALSE)
+  }
+  if (
+    !all(is.finite(c(arrow_head_angle_r2_min, arrow_head_angle_r2_mid, arrow_head_angle_r2_max))) ||
+      arrow_head_angle_r2_min >= arrow_head_angle_r2_mid ||
+      arrow_head_angle_r2_mid >= arrow_head_angle_r2_max
+  ) {
+    stop("R2 anchors for arrow head angle must satisfy min < mid < max.", call. = FALSE)
+  }
+  if (!is.finite(arrow_head_angle_step) || arrow_head_angle_step <= 0) {
+    stop("--arrow-head-angle-step must be a finite positive value.", call. = FALSE)
+  }
+}
 
 lsgi_result_path <- file.path(paths$intermediate, "11_lsgi_cell_component_result.rds.gz")
 did_reuse_lsgi <- FALSE
@@ -264,6 +306,81 @@ utils::write.csv(grid_table_df, file.path(out_dir, "grid_spot_summary.csv"), row
 lin_res <- get.ind.rsqrs(lsgi_res)
 lin_res <- stats::na.omit(lin_res)
 
+rescale_arrow_length <- function(df) {
+  df <- df %>%
+    dplyr::mutate(
+      gradient_strength = sqrt(vx^2 + vy^2),
+      original_vx.u = vx.u,
+      original_vy.u = vy.u,
+      original_scaled_length = sqrt(vx.u^2 + vy.u^2)
+    )
+
+  scale_one_group <- function(group_df) {
+    finite_strength <- is.finite(group_df$gradient_strength)
+    if (!any(finite_strength)) {
+      group_df$gradient_strength_norm <- NA_real_
+      group_df$arrow_length_multiplier <- NA_real_
+      return(group_df)
+    }
+
+    min_strength <- min(group_df$gradient_strength[finite_strength], na.rm = TRUE)
+    max_strength <- max(group_df$gradient_strength[finite_strength], na.rm = TRUE)
+    if (!is.finite(min_strength) || !is.finite(max_strength) || max_strength <= min_strength) {
+      strength_norm <- ifelse(finite_strength, 0.5, NA_real_)
+    } else {
+      strength_norm <- (group_df$gradient_strength - min_strength) / (max_strength - min_strength)
+      strength_norm[!finite_strength] <- NA_real_
+    }
+
+    group_df$gradient_strength_norm <- strength_norm
+    group_df$arrow_length_multiplier <- 0.5 + 1.5 * strength_norm
+    group_df
+  }
+
+  df <- if (identical(arrow_length_normalization, "global")) {
+    scale_one_group(df)
+  } else {
+    df %>%
+      dplyr::group_by(fctr) %>%
+      dplyr::group_modify(~ scale_one_group(.x)) %>%
+      dplyr::ungroup()
+  }
+
+  df %>%
+    dplyr::mutate(
+      vx.u = original_vx.u * arrow_length_multiplier,
+      vy.u = original_vy.u * arrow_length_multiplier,
+      scaled_length = sqrt(vx.u^2 + vy.u^2),
+      plotted_length = scaled_length * arrow_length_scale
+    )
+}
+
+lin_res <- rescale_arrow_length(lin_res)
+
+map_arrow_head_angle <- function(rsquared) {
+  if (!arrow_head_angle_by_r2) {
+    return(rep(arrow_head_angle, length(rsquared)))
+  }
+
+  r2_clipped <- pmin(pmax(rsquared, arrow_head_angle_r2_min), arrow_head_angle_r2_max)
+  angle <- ifelse(
+    r2_clipped <= arrow_head_angle_r2_mid,
+    arrow_head_angle_min +
+      (r2_clipped - arrow_head_angle_r2_min) /
+        (arrow_head_angle_r2_mid - arrow_head_angle_r2_min) *
+        (arrow_head_angle_mid - arrow_head_angle_min),
+    arrow_head_angle_mid +
+      (r2_clipped - arrow_head_angle_r2_mid) /
+        (arrow_head_angle_r2_max - arrow_head_angle_r2_mid) *
+        (arrow_head_angle_max - arrow_head_angle_mid)
+  )
+  angle <- round(angle / arrow_head_angle_step) * arrow_head_angle_step
+  pmin(pmax(angle, arrow_head_angle_min), arrow_head_angle_max)
+}
+
+lin_res <- lin_res %>%
+  dplyr::mutate(arrow_head_angle_mapped = map_arrow_head_angle(rsquared))
+
 pass_count_df <- lin_res %>%
   dplyr::filter(rsquared > r_squared_thresh) %>%
   dplyr::count(fctr, name = "n_grids_passing_r_squared")
@@ -273,27 +390,64 @@ all_arrow_df <- lin_res %>%
   dplyr::mutate(
     n_grids_passing_r_squared = ifelse(is.na(n_grids_passing_r_squared), 0L, n_grids_passing_r_squared),
     component = fctr,
-    raw_length = sqrt(vx^2 + vy^2),
-    scaled_length = sqrt(vx.u^2 + vy.u^2),
+    raw_length = gradient_strength,
     passes_r_squared = rsquared > r_squared_thresh,
     passes_minimum_fctr = n_grids_passing_r_squared >= minimum_fctr,
     included_in_filtered_output = passes_r_squared & passes_minimum_fctr
   ) %>%
   dplyr::arrange(grid, component)
 
+grid_arrow_df <- all_arrow_df %>%
+  dplyr::transmute(
+    grid,
+    Assignment = as.character(component),
+    gradient_strength,
+    gradient_strength_norm,
+    arrow_length_multiplier,
+    arrow_head_angle_mapped,
+    vx.u_rescaled = vx.u,
+    vy.u_rescaled = vy.u,
+    scaled_length_rescaled = scaled_length,
+    plotted_length
+  )
+grid_info_df <- grid_info_df %>%
+  dplyr::mutate(
+    Assignment = as.character(Assignment),
+    original_vx.u = vx.u,
+    original_vy.u = vy.u,
+    original_scaled_length = sqrt(vx.u^2 + vy.u^2)
+  ) %>%
+  dplyr::left_join(grid_arrow_df, by = c("grid", "Assignment"), suffix = c("", "_all_component")) %>%
+  dplyr::mutate(
+    vx.u = dplyr::coalesce(vx.u_rescaled, vx.u),
+    vy.u = dplyr::coalesce(vy.u_rescaled, vy.u),
+    scaled_length = dplyr::coalesce(scaled_length_rescaled, sqrt(vx.u^2 + vy.u^2))
+  ) %>%
+  dplyr::select(-vx.u_rescaled, -vy.u_rescaled, -scaled_length_rescaled)
+utils::write.csv(grid_info_df, file.path(out_dir, "grid_info.csv"), row.names = FALSE)
+
 arrow_dir <- file.path(out_dir, "arrow_tables")
 dir.create(arrow_dir, recursive = TRUE, showWarnings = FALSE)
 utils::write.csv(
   all_arrow_df[, c(
     "grid", "component", "X", "Y", "vx", "vy", "rsquared", "raw_length",
-    "sf", "vx.u", "vy.u", "scaled_length",
+    "gradient_strength", "gradient_strength_norm", "arrow_length_multiplier",
+    "arrow_head_angle_mapped",
+    "sf", "original_vx.u", "original_vy.u", "original_scaled_length",
+    "vx.u", "vy.u", "scaled_length", "plotted_length",
     "passes_r_squared", "passes_minimum_fctr", "included_in_filtered_output"
   )],
   file.path(arrow_dir, "cell_component_arrows_by_grid.csv"),
   row.names = FALSE
 )
 
-arrow_df <- all_arrow_df[all_arrow_df$included_in_filtered_output, c("vx", "vy", "rsquared", "component", "grid", "X", "Y", "qsum", "sf", "vx.u", "vy.u"), drop = FALSE]
+arrow_df <- all_arrow_df[all_arrow_df$included_in_filtered_output, c(
+  "vx", "vy", "rsquared", "component", "grid", "X", "Y", "qsum", "sf",
+  "gradient_strength", "gradient_strength_norm", "arrow_length_multiplier",
+  "arrow_head_angle_mapped",
+  "original_vx.u", "original_vy.u", "original_scaled_length",
+  "vx.u", "vy.u", "scaled_length", "plotted_length"
+), drop = FALSE]
 colnames(arrow_df)[colnames(arrow_df) == "component"] <- "fctr"
 utils::write.csv(arrow_df, file.path(out_dir, "cell_component_gradient_arrows.csv"), row.names = FALSE)
 
@@ -328,22 +482,35 @@ add_gradient_arrows <- function(p, arrow_data = arrow_plot_df) {
   if (nrow(arrow_data) == 0) {
     return(p + ggplot2::labs(subtitle = paste0("No component gradients passed R2 > ", r_squared_thresh)))
   }
-  p +
-    ggplot2::geom_segment(
-      data = arrow_data,
-      ggplot2::aes(
-        x = X,
-        y = Y,
-        xend = X_end,
-        yend = Y_end,
-        color = fctr
-      ),
-      inherit.aes = FALSE,
-      linewidth = arrow_linewidth,
-      lineend = "round",
-      arrow = ggplot2::arrow(length = grid::unit(arrow_head_cm, "cm"), type = arrow_type)
-    ) +
-    ggplot2::labs(color = "LSGI component")
+  if (!"arrow_head_angle_mapped" %in% colnames(arrow_data)) {
+    arrow_data$arrow_head_angle_mapped <- arrow_head_angle
+  }
+  angle_values <- sort(unique(arrow_data$arrow_head_angle_mapped[is.finite(arrow_data$arrow_head_angle_mapped)]))
+  if (length(angle_values) == 0) {
+    angle_values <- arrow_head_angle
+  }
+
+  out <- p
+  for (angle_value in angle_values) {
+    layer_data <- arrow_data[is.finite(arrow_data$arrow_head_angle_mapped) & arrow_data$arrow_head_angle_mapped == angle_value, , drop = FALSE]
+    if (nrow(layer_data) == 0) next
+    out <- out +
+      ggplot2::geom_segment(
+        data = layer_data,
+        ggplot2::aes(
+          x = X,
+          y = Y,
+          xend = X_end,
+          yend = Y_end,
+          color = fctr
+        ),
+        inherit.aes = FALSE,
+        linewidth = arrow_linewidth,
+        lineend = "round",
+        arrow = ggplot2::arrow(length = grid::unit(arrow_head_cm, "cm"), angle = angle_value, type = arrow_type)
+      )
+  }
+  out + ggplot2::labs(color = "LSGI component")
 }
 
 boundary_base <- ggplot2::ggplot(point_df, ggplot2::aes(x = X, y = Y, fill = Location)) +
@@ -421,14 +588,19 @@ if (has_image) {
   )
 }
 
-grDevices::pdf(file.path(out_dir, "cell_component_gradients_plain_lsgi.pdf"), width = 8, height = 7)
-print(plt.factors.gradient.ind(
-  info = lsgi_res,
-  r_squared_thresh = r_squared_thresh,
-  minimum.fctr = minimum_fctr,
-  arrow.length.scale = arrow_length_scale
-) + ggplot2::ggtitle("LSGI cell-component gradients"))
-grDevices::dev.off()
+plain_gradient_base <- ggplot2::ggplot(point_df, ggplot2::aes(x = X, y = Y)) +
+  ggplot2::geom_point(size = 1.5, shape = 20, stroke = 0, color = "lightgrey") +
+  ggplot2::scale_y_reverse() +
+  ggplot2::coord_fixed() +
+  ggplot2::theme_void() +
+  ggplot2::theme(legend.position = "right") +
+  ggplot2::ggtitle("LSGI cell-component gradients")
+ggplot2::ggsave(
+  file.path(out_dir, "cell_component_gradients_plain_lsgi.pdf"),
+  add_gradient_arrows(plain_gradient_base),
+  width = 8,
+  height = 7
+)
 
 partition_plot <- ggplot2::ggplot(partition_df, ggplot2::aes(x = X, y = Y, color = nearest_grid)) +
   ggplot2::geom_point(size = 1.6, alpha = 0.9) +
@@ -606,8 +778,15 @@ cat("Selected gradient arrows:", nrow(arrow_df), "\n")
 cat("Generated grids:", nrow(grid_info_df), "\n")
 cat("H&E overlay available:", has_image, "\n\n")
 cat("Arrow length scale:", arrow_length_scale, "\n")
+cat("Arrow length normalization:", arrow_length_normalization, "\n")
+cat("Arrow length multiplier range: 0.5 to 2 times the previous default plotted length\n")
 cat("Arrow linewidth:", arrow_linewidth, "\n")
 cat("Arrow head cm:", arrow_head_cm, "\n")
+cat("Arrow head angle:", arrow_head_angle, "\n")
+cat("Arrow head angle by R2:", arrow_head_angle_by_r2, "\n")
+cat("Arrow head angle range:", arrow_head_angle_min, "to", arrow_head_angle_max, "\n")
+cat("Arrow head angle R2 anchors:", arrow_head_angle_r2_min, arrow_head_angle_r2_mid, arrow_head_angle_r2_max, "\n")
+cat("Arrow head angle step:", arrow_head_angle_step, "\n")
 cat("Arrow closed:", arrow_closed, "\n")
 cat("Reused LSGI result:", did_reuse_lsgi, "\n\n")
 cat("Outputs:\n")

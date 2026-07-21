@@ -8,7 +8,7 @@
 # - intermediate/07_decon_inputs.rds.gz：保存反卷积中间矩阵，便于调试。
 # - intermediate/07_TumorST_for_decon.rds.gz：NormalizeData 后、带 Decon_topics 的对象。
 # - output/<样本名>/07_spatial_deconvolution/DeconData.xlsx：反卷积结果的 Excel 版本。
-# - output/<样本名>/07_spatial_deconvolution/spot_matrix_pre_lsgi.csv：每个 spot 一行，含坐标、边界归属和反卷积结果。
+# - output/<样本名>/07/spot_matrix_pre_lsgi.csv：每个 spot 一行，含坐标、边界归属和反卷积结果。
 script_file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(script_file_arg) > 0) dirname(normalizePath(sub("^--file=", "", script_file_arg[[1]]), winslash = "/", mustWork = FALSE)) else normalizePath(getwd(), winslash = "/", mustWork = FALSE)
 source(file.path(script_dir, "00_config.R"))
@@ -16,7 +16,7 @@ load_required_packages(c("Seurat", "Matrix", "Rfast", "quadprog", "data.table", 
 source(file.path(paths$lib, "decon_helpers.R"))
 
 out_dir <- file.path(paths$output, "07_spatial_deconvolution")
-spot_out_dir <- file.path(paths$output, "07_spatial_deconvolution")
+spot_out_dir <- file.path(paths$output, "07")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(spot_out_dir, recursive = TRUE, showWarnings = FALSE)
 

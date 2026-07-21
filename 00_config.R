@@ -157,7 +157,27 @@ params <- list(
   volcano_label_n = 10,
   pie_scale = 0.4,
   scatterpie_alpha = 0.8,
-  pie_border_color = "grey"
+  pie_border_color = "grey",
+  # LSGI 箭头外观参数。
+  lsgi_arrow_length_scale = 1.4,
+  lsgi_arrow_linewidth = 1.0,
+  lsgi_arrow_head_cm = 0.20,
+  lsgi_arrow_head_angle = 30,
+  # 用局部线性回归 R2 映射箭头头部张角，表达箭头方向估计的可信度。
+  # R2 <= 0.3 映射到 22.5 度；R2 = 0.5 保持默认 30 度；R2 >= 0.7 映射到 45 度。
+  lsgi_arrow_head_angle_by_r2 = TRUE,
+  lsgi_arrow_head_angle_min = 22.5,
+  lsgi_arrow_head_angle_mid = 30,
+  lsgi_arrow_head_angle_max = 45,
+  lsgi_arrow_head_angle_r2_min = 0.3,
+  lsgi_arrow_head_angle_r2_mid = 0.5,
+  lsgi_arrow_head_angle_r2_max = 0.7,
+  lsgi_arrow_head_angle_step = 1,
+  lsgi_arrow_closed = TRUE,
+  # LSGI 箭头长度归一化方式：
+  # "global" 表示所有细胞组分的箭头一起归一化，长度可跨组分比较；
+  # "by_component" 表示每个细胞组分内部单独归一化，只比较同一组分内的梯度强弱。
+  lsgi_arrow_length_normalization = "global"
 )
 
 # 全流程可能用到的包集合；每个脚本会按需传入子集给 load_required_packages()。
