@@ -1,0 +1,74 @@
+gene_id	gene_symbol	panel	scorer	label	description
+CXCL9	CXCL9	immune_access	lognorm_zscore	CXCL9	Inflammatory macrophage and IFN-response chemokine.
+CXCL10	CXCL10	immune_access	lognorm_zscore	CXCL10	CXCR3 ligand paired with CXCL9.
+IFNG	IFNG	immune_access	lognorm_zscore	IFNG	T/NK effector cytokine.
+CCL5	CCL5	immune_access	lognorm_zscore	CCL5	Effector T/NK recruitment chemokine.
+GZMB	GZMB	immune_access	lognorm_zscore	GZMB	Cytotoxic effector molecule.
+IDO1	IDO1	immune_access	lognorm_zscore	IDO1	IFN-induced antigen-presentation and negative-feedback molecule.
+HLA_DRA	HLA-DRA	immune_access	lognorm_zscore	HLA-DRA	MHC II antigen-presentation marker.
+CD74	CD74	immune_access	lognorm_zscore	CD74	MHC II chaperone.
+SPP1	SPP1	immune_access	lognorm_zscore	SPP1	Angiogenic and ECM-remodeling macrophage or tumor marker.
+GPNMB	GPNMB	immune_access	lognorm_zscore	GPNMB	Suppressive or repair-like myeloid state marker.
+MMP9	MMP9	immune_access	lognorm_zscore	MMP9	ECM degradation and myeloid invasion marker.
+ASPN	ASPN	caf_ecm	lognorm_zscore	ASPN	Boundary-associated stromal fibroblast marker.
+FAP	FAP	caf_ecm	lognorm_zscore	FAP	Activated CAF marker.
+MMP11	MMP11	caf_ecm	lognorm_zscore	MMP11	CAF-associated ECM remodeling marker.
+COL1A1	COL1A1	caf_ecm	lognorm_zscore	COL1A1	Type I collagen marker.
+COL5A1	COL5A1	caf_ecm	lognorm_zscore	COL5A1	Collagen-fiber organization marker.
+POSTN	POSTN	caf_ecm	lognorm_zscore	POSTN	Invasive CAF and tumor-endothelium marker.
+ACTA2	ACTA2	caf_ecm	lognorm_zscore	ACTA2	Contractile CAF, pericyte or myoepithelial marker.
+MMP2	MMP2	caf_ecm	lognorm_zscore	MMP2	Peritumoral basement-membrane remodeling marker.
+SPARC	SPARC	caf_ecm	lognorm_zscore	SPARC	Collagen organization and wound-repair marker.
+TGFB3	TGFB3	caf_ecm	lognorm_zscore	TGFB3	Peritumoral fibrosis and EMT-induction ligand.
+S100A4	S100A4	caf_ecm	lognorm_zscore	S100A4	Fibroblast and pEMT-associated marker.
+SERPINE1	SERPINE1	caf_ecm	lognorm_zscore	SERPINE1	TGF beta, hypoxia and invasion-linked marker.
+LAMC2	LAMC2	invasion_interface	lognorm_zscore	LAMC2	Laminin-332 invasive interface marker.
+LAMA3	LAMA3	invasion_interface	lognorm_zscore	LAMA3	Laminin-332 interface marker.
+ITGB4	ITGB4	invasion_interface	lognorm_zscore	ITGB4	Alpha6-beta4 integrin interface marker.
+MMP14	MMP14	invasion_interface	lognorm_zscore	MMP14	Membrane-type local ECM-degradation marker.
+KRT17	KRT17	invasion_interface	lognorm_zscore	KRT17	Basal-like cancer-cell marker.
+ANXA1	ANXA1	invasion_interface	lognorm_zscore	ANXA1	pEMT and stress marker.
+LGALS3	LGALS3	invasion_interface	lognorm_zscore	LGALS3	EMT, adhesion and stress marker.
+VIM	VIM	invasion_interface	lognorm_zscore	VIM	Mesenchymal-state marker.
+SNAI1	SNAI1	invasion_interface	lognorm_zscore	SNAI1	EMT transcription factor.
+ZEB1	ZEB1	invasion_interface	lognorm_zscore	ZEB1	EMT transcription factor.
+CDH2	CDH2	invasion_interface	lognorm_zscore	CDH2	N-cadherin switch marker.
+NDRG1	NDRG1	hypoxia_vascular	lognorm_zscore	NDRG1	Stable hypoxia-response marker.
+VEGFA	VEGFA	hypoxia_vascular	lognorm_zscore	VEGFA	Hypoxia and angiogenesis marker.
+EGLN3	EGLN3	hypoxia_vascular	lognorm_zscore	EGLN3	HIF-feedback marker.
+CA9	CA9	hypoxia_vascular	lognorm_zscore	CA9	Strong hypoxia and acidity marker.
+SLC7A11	SLC7A11	redox_protection	lognorm_zscore	SLC7A11	Cystine transporter and glutathione synthesis support marker.
+GPX4	GPX4	redox_protection	lognorm_zscore	GPX4	Glutathione peroxidase and ferroptosis protection marker.
+ACSL4	ACSL4	redox_protection	lognorm_zscore	ACSL4	Polyunsaturated fatty-acid activation marker linked to ferroptosis sensitivity.
+GCLC	GCLC	redox_protection	lognorm_zscore	GCLC	Glutamate-cysteine ligase catalytic subunit for glutathione synthesis.
+GCLM	GCLM	redox_protection	lognorm_zscore	GCLM	Glutamate-cysteine ligase modifier subunit for glutathione synthesis.
+GSS	GSS	redox_protection	lognorm_zscore	GSS	Glutathione synthetase marker.
+TXNRD1	TXNRD1	redox_protection	lognorm_zscore	TXNRD1	Thioredoxin reductase marker.
+NQO1	NQO1	redox_protection	lognorm_zscore	NQO1	NRF2-associated quinone detoxification marker.
+ACKR1	ACKR1	hypoxia_vascular	lognorm_zscore	ACKR1	Normal-like venous endothelial marker.
+SELENOP	SELENOP	hypoxia_vascular	lognorm_zscore	SELENOP	Normal-like endothelial metabolic marker.
+APOD	APOD	hypoxia_vascular	lognorm_zscore	APOD	Normal-like vascular or lipid-metabolic marker.
+FGF7	FGF7	hypoxia_vascular	lognorm_zscore	FGF7	Normal endothelial-stromal signaling marker.
+PLVAP	PLVAP	hypoxia_vascular	lognorm_zscore	PLVAP	Tumor-vessel permeability marker.
+KDR	KDR	hypoxia_vascular	lognorm_zscore	KDR	VEGFR2 tumor-endothelial marker.
+RGS5	RGS5	hypoxia_vascular	lognorm_zscore	RGS5	Pericyte marker.
+PDGFRB	PDGFRB	hypoxia_vascular	lognorm_zscore	PDGFRB	Pericyte or CAF marker.
+LYVE1	LYVE1	hypoxia_vascular	lognorm_zscore	LYVE1	Lymphatic or resident macrophage marker.
+CCL21	CCL21	hypoxia_vascular	lognorm_zscore	CCL21	Lymphatic and TLS-recruitment chemokine.
+PLIN1	PLIN1	adipocyte	lognorm_zscore	PLIN1	Mature lipid-droplet marker.
+ADIPOQ	ADIPOQ	adipocyte	lognorm_zscore	ADIPOQ	Mature adipocyte marker.
+PPARG	PPARG	adipocyte	lognorm_zscore	PPARG	Adipocyte differentiation marker.
+FABP4	FABP4	adipocyte	lognorm_zscore	FABP4	Fatty-acid binding and adipocyte marker.
+HNF4A	HNF4A	adipocyte	lognorm_zscore	HNF4A	Exploratory peritumoral lipolysis marker.
+AQP7	AQP7	adipocyte	lognorm_zscore	AQP7	Glycerol transport and lipolysis marker.
+LIPE	LIPE	adipocyte	lognorm_zscore	LIPE	Hormone-sensitive lipase marker.
+BNIP3	BNIP3	adipocyte	lognorm_zscore	BNIP3	Adipocyte hypoxia and remodeling marker.
+CCL13	CCL13	adipocyte	lognorm_zscore	CCL13	Inflammatory adipocyte-signal marker.
+IGF1	IGF1	adipocyte	lognorm_zscore	IGF1	Peritumoral growth-factor marker.
+FGF2	FGF2	adipocyte	lognorm_zscore	FGF2	Adipose-stromal-vascular signal marker.
+S100A9	S100A9	residual_recurrence	lognorm_zscore	S100A9	Exploratory inflammatory residual-cancer marker.
+S100A7	S100A7	residual_recurrence	lognorm_zscore	S100A7	Exploratory secretory or basal-like residual-cancer marker.
+SLPI	SLPI	residual_recurrence	lognorm_zscore	SLPI	Exploratory secretory tolerant-state marker.
+CHI3L1	CHI3L1	residual_recurrence	lognorm_zscore	CHI3L1	Exploratory tissue-repair and suppressive-myeloid marker.
+SERPINA3	SERPINA3	residual_recurrence	lognorm_zscore	SERPINA3	Exploratory inflammation and protease-inhibitor marker.
+AZGP1	AZGP1	residual_recurrence	lognorm_zscore	AZGP1	Exploratory secretory and metabolic residual-cancer marker.

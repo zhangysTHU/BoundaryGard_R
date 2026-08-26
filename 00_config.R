@@ -174,10 +174,82 @@ params <- list(
   lsgi_arrow_head_angle_r2_max = 0.7,
   lsgi_arrow_head_angle_step = 1,
   lsgi_arrow_closed = TRUE,
+  # 12_boundary_related_lsgi_arrows.R 默认使用的边界相关箭头筛选策略。
+  # 当前默认 local_broad：LSGI local regression 邻域中 Bdy spot 数量 >= 5 且比例 >= 0.10。
+  # 可选值：
+  # - local_broad, local_relaxed, local_primary, local_strict
+  # - partition_any, partition_relaxed, partition_primary, partition_strict
+  # - primary_consensus, primary_union
+  # - all 表示遍历全部内置策略；也可用逗号分隔多个策略，例如 "local_broad,primary_union"。
+  boundary_lsgi_arrow_strategy = env_chr("COTTRAZM_BOUNDARY_LSGI_ARROW_STRATEGY", "local_broad"),
   # LSGI 箭头长度归一化方式：
   # "global" 表示所有细胞组分的箭头一起归一化，长度可跨组分比较；
   # "by_component" 表示每个细胞组分内部单独归一化，只比较同一组分内的梯度强弱。
-  lsgi_arrow_length_normalization = "global"
+  lsgi_arrow_length_normalization = "global",
+  # LSGI embedding/component 来源。cell_component 使用 07_DeconData；
+  # nmf 自动在 lsgi_nmf_ranks 中选择 k；其余三类从 resources/lsgi_embedding_catalog/*.tsv 读取。
+  lsgi_component_methods = c("cell_component", "nmf", "marker_module", "pathway", "single_gene"),
+  lsgi_embedding_catalog_dir = file.path(paths$resources, "lsgi_embedding_catalog"),
+  lsgi_expression_assay = "Spatial",
+  lsgi_expression_layer = "counts",
+  lsgi_expression_scale_factor = 10000,
+  # gene set/module 至少需要命中这么多个正向基因才进入 LSGI；single_gene 固定按 1 个基因处理。
+  lsgi_min_feature_genes = 2,
+  # NMF 自动 k 选择参数；11_lsgi_gradient.R 会在这些 k 上做 singlet cross-validation。
+  lsgi_nmf_ranks = 6:10,
+  lsgi_nmf_cv_replicates = 3,
+  lsgi_nmf_cv_tol = 1e-3,
+  lsgi_nmf_cv_maxit = 100,
+  lsgi_nmf_final_tol = 1e-4,
+  lsgi_nmf_final_maxit = 300,
+  lsgi_nmf_rank_error_tolerance = 0.01,
+  lsgi_nmf_test_density = 0.05,
+  lsgi_nmf_l1 = 0.01,
+  lsgi_nmf_l2 = 0,
+  lsgi_nmf_threads = 1,
+  lsgi_nmf_precision = "double",
+  lsgi_nmf_assay = "Spatial",
+  lsgi_nmf_layer = "counts",
+  lsgi_nmf_top_genes = 2000,
+  lsgi_nmf_min_gene_spots = 10,
+  lsgi_nmf_scale_factor = 10000,
+  lsgi_nmf_seed = 666,
+  # 以下 ID 必须存在于 resources/lsgi_embedding_catalog/marker_modules.tsv。
+  # 设为 character(0) 或 NULL 时，11_lsgi_gradient.R 会计算该 TSV 中所有条目。
+  lsgi_marker_module_ids = c(
+    "CXCL9_MACROPHAGE", "SPP1_MACROPHAGE", "CD8_CYTOTOXICITY",
+    "TUMOR_IFN_M5", "TUMOR_HLA_M6", "CAF_ECM_BARRIER",
+    "CONTRACTILE_BARRIER", "PEMT_INVASION", "LAMININ_332_INTERFACE",
+    "HYPOXIA", "REDOX_SCORE", "BM_FRS", "MYELOID_FOLR2_SUPPORT",
+    "CAF_REDOX_SUPPORT", "ENDOTHELIAL_REDOX_SUPPORT",
+    "TLS_ORGANIZATION", "MATURE_ADIPOCYTE",
+    "ADIPOCYTE_LIPOLYSIS_FIELD", "NORMAL_LIKE_ENDOTHELIUM",
+    "TUMOR_ENDOTHELIUM", "PERIVASCULAR_LYMPHATIC", "RESIDUAL_RECURRENCE"
+  ),
+  # 以下 ID 必须存在于 resources/lsgi_embedding_catalog/pathways.tsv。
+  lsgi_pathway_ids = c(
+    "HALLMARK_IFN_GAMMA_RESPONSE", "REACTOME_MHC_I_ANTIGEN_PRESENTATION",
+    "REACTOME_MHC_II_ANTIGEN_PRESENTATION", "REACTOME_CHEMOKINE_RECEPTORS",
+    "HALLMARK_EMT", "HALLMARK_TGF_BETA_SIGNALING",
+    "REACTOME_ECM_ORGANIZATION", "REACTOME_COLLAGEN_FORMATION",
+    "KEGG_FOCAL_ADHESION", "HALLMARK_HYPOXIA", "HALLMARK_ANGIOGENESIS",
+    "HALLMARK_TNFA_NFKB", "HALLMARK_COMPLEMENT", "HALLMARK_UPR",
+    "HALLMARK_E2F_TARGETS", "HALLMARK_G2M_CHECKPOINT",
+    "HALLMARK_ADIPOGENESIS", "HALLMARK_CHOLESTEROL_HOMEOSTASIS"
+  ),
+  # 以下 ID 必须存在于 resources/lsgi_embedding_catalog/single_genes.tsv。
+  lsgi_single_gene_ids = c(
+    "CXCL9", "CXCL10", "IFNG", "CCL5", "GZMB", "IDO1", "HLA_DRA", "CD74",
+    "SPP1", "GPNMB", "MMP9", "ASPN", "FAP", "MMP11", "COL1A1", "COL5A1",
+    "POSTN", "ACTA2", "MMP2", "SPARC", "TGFB3", "S100A4", "SERPINE1",
+    "LAMC2", "LAMA3", "ITGB4", "MMP14", "KRT17", "ANXA1", "LGALS3",
+    "VIM", "SNAI1", "ZEB1", "CDH2", "NDRG1", "VEGFA", "EGLN3", "CA9",
+    "SLC7A11", "GPX4", "ACSL4", "GCLC", "GCLM", "GSS", "TXNRD1", "NQO1",
+    "ACKR1", "SELENOP", "APOD", "FGF7", "PLVAP", "KDR", "RGS5", "PDGFRB",
+    "LYVE1", "CCL21", "PLIN1", "ADIPOQ", "PPARG", "FABP4", "HNF4A",
+    "AQP7", "LIPE", "BNIP3", "CCL13", "IGF1", "FGF2", "S100A9",
+    "S100A7", "SLPI", "CHI3L1", "SERPINA3", "AZGP1"
+  )
 )
 
 # 全流程可能用到的包集合；每个脚本会按需传入子集给 load_required_packages()。

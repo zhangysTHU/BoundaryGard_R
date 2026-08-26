@@ -7,7 +7,7 @@
 script_file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(script_file_arg) > 0) dirname(normalizePath(sub("^--file=", "", script_file_arg[[1]]), winslash = "/", mustWork = FALSE)) else normalizePath(getwd(), winslash = "/", mustWork = FALSE)
 source(file.path(script_dir, "00_config.R"))
-load_required_packages(c("Seurat", "magrittr", "dplyr", "purrr", "tibble", "ggplot2", "assertthat", "readr"))
+load_required_packages(c("Seurat", "magrittr", "dplyr", "purrr", "tibble", "ggplot2", "assertthat", "readr", "png", "grid"))
 source(file.path(paths$lib, "boundary_helpers.R"))
 
 TumorST <- readr::read_rds(file.path(paths$intermediate, "04_TumorST_cnv_scored.rds.gz"))
@@ -45,6 +45,80 @@ position <- load_spaceranger_positions(paths$spaceranger, rownames(TumorST@meta.
 position$spot.ids <- seq_len(nrow(position))
 dists <- compute_interspot_distances(position = position, scale.factor = 1.05)
 df_j <- find_neighbors(position = position, radius = dists$radius, method = "manhattan")
+
+slice <- names(TumorST@images)[1]
+scale_factor <- if (!is.na(slice) && nzchar(slice)) {
+  TumorST@images[[slice]]@scale.factors$lowres %||% 1
+} else {
+  1
+}
+plot_position <- position %>%
+  tibble::rownames_to_column("cell_ID") %>%
+  dplyr::mutate(
+    X = imagecol * scale_factor,
+    Y = imagerow * scale_factor
+  )
+img_path <- file.path(paths$spaceranger, "spatial", "tissue_lowres_image.png")
+has_image <- file.exists(img_path)
+if (has_image) {
+  img <- png::readPNG(img_path)
+  img_grob <- grid::rasterGrob(
+    img,
+    interpolate = FALSE,
+    width = grid::unit(1, "npc"),
+    height = grid::unit(1, "npc")
+  )
+}
+
+make_spatial_boundary_plot <- function(label_df, label_col, label_cols, title = NULL) {
+  point_df <- plot_position %>%
+    dplyr::inner_join(label_df[, c("cell_ID", label_col), drop = FALSE], by = "cell_ID") %>%
+    dplyr::mutate(label = factor(.data[[label_col]], levels = names(label_cols)))
+
+  if (has_image) {
+    point_df <- point_df %>%
+      dplyr::mutate(Y = -Y)
+    p <- ggplot2::ggplot() +
+      ggplot2::annotation_custom(
+        grob = img_grob,
+        xmin = 0,
+        xmax = ncol(img),
+        ymin = -nrow(img),
+        ymax = 0
+      ) +
+      ggplot2::geom_point(
+        data = point_df,
+        ggplot2::aes(x = X, y = Y, fill = label),
+        shape = 21,
+        size = 1.8,
+        stroke = 0.1,
+        color = "grey20",
+        alpha = 0.82,
+        na.rm = TRUE
+      ) +
+      ggplot2::coord_fixed(
+        ratio = 1,
+        xlim = c(0, ncol(img)),
+        ylim = c(-nrow(img), 0),
+        expand = FALSE,
+        clip = "on"
+      )
+  } else {
+    p <- ggplot2::ggplot(point_df, ggplot2::aes(x = X, y = Y, fill = label)) +
+      ggplot2::geom_point(shape = 21, size = 1.8, stroke = 0.1, color = "grey25", alpha = 0.9, na.rm = TRUE) +
+      ggplot2::scale_y_reverse() +
+      ggplot2::coord_fixed()
+  }
+
+  p <- p +
+    ggplot2::scale_fill_manual(values = label_cols, drop = FALSE, name = label_col) +
+    ggplot2::theme_void() +
+    ggplot2::theme(legend.position = "right")
+  if (!is.null(title)) {
+    p <- p + ggplot2::ggtitle(title)
+  }
+  p
+}
 
 # 若未手动指定恶性 CNV 标签，就从有效 Observation 标签中取 CNV score 中位数最高的两个。
 # Reference/Filtered 绝不能成为恶性种子；全 NA 的低质量 spot 也不参与排序。
@@ -174,8 +248,12 @@ repeat {
   TumorSTn@meta.data$LabelNew <- factor(TumorSTn@meta.data$LabelNew, levels = c("Normal", "Bdy", "Mal", paste0("Mal", 1:n)))
 
   cols_n <- c("#33a02c", "#1f78b4", rev(c("#fef0d9", "#fdd49e", "#fdbb84", "#fc8d59", "#ef6548", "#d7301f", "#990000"))[1:(n + 1)])
+  names(cols_n) <- levels(TumorSTn@meta.data$LabelNew)
   pdf(file.path(out_dir, paste0(sample_name, "_out_", n, ".pdf")), width = 7, height = 7)
-  print(Seurat::SpatialDimPlot(TumorSTn, group.by = "LabelNew", cols = cols_n) + ggplot2::scale_fill_manual(values = cols_n))
+  round_df <- TumorSTn@meta.data %>%
+    tibble::rownames_to_column("cell_ID") %>%
+    dplyr::mutate(LabelNew = factor(LabelNew, levels = names(cols_n)))
+  print(make_spatial_boundary_plot(round_df, "LabelNew", cols_n))
   dev.off()
 
   MalCellID <- rownames(TumorSTn@meta.data[TumorSTn@meta.data$LabelNew %in% c("Mal", paste0("Mal", 1:n)), ])
@@ -200,8 +278,10 @@ TumorST@misc$boundary_params <- boundary_params
 
 pdf(file.path(out_dir, paste0(sample_name, "_BoundaryDefine.pdf")), width = 7, height = 7)
 boundary_cols <- c(Mal = "#CB181D", Bdy = "#1f78b4", nMal = "#fdb462")
-print(Seurat::SpatialDimPlot(TumorST, group.by = "Location", cols = boundary_cols) +
-  ggplot2::scale_fill_manual(values = boundary_cols, drop = FALSE))
+final_df <- TumorST@meta.data %>%
+  tibble::rownames_to_column("cell_ID") %>%
+  dplyr::mutate(Location = factor(Location, levels = names(boundary_cols)))
+print(make_spatial_boundary_plot(final_df, "Location", boundary_cols))
 dev.off()
 
 location_counts <- as.data.frame(table(TumorST@meta.data$Location, useNA = "ifany"))

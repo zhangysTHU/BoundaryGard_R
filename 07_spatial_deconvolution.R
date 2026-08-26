@@ -16,7 +16,7 @@ load_required_packages(c("Seurat", "Matrix", "Rfast", "quadprog", "data.table", 
 source(file.path(paths$lib, "decon_helpers.R"))
 
 out_dir <- file.path(paths$output, "07_spatial_deconvolution")
-spot_out_dir <- file.path(paths$output, "07")
+spot_out_dir <- file.path(paths$output, "07_spatial_deconvolution")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(spot_out_dir, recursive = TRUE, showWarnings = FALSE)
 

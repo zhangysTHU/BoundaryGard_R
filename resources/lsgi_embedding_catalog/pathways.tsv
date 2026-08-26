@@ -1,0 +1,19 @@
+pathway_id	label	source	collection	name	scorer	description
+HALLMARK_IFN_GAMMA_RESPONSE	IFN gamma response	msigdbr	H	HALLMARK_INTERFERON_GAMMA_RESPONSE	rank_mean	Tissue-level interferon gamma response.
+REACTOME_MHC_I_ANTIGEN_PRESENTATION	MHC I antigen presentation	msigdbr	C2:CP:REACTOME	REACTOME_ANTIGEN_PRESENTATION_FOLDING_ASSEMBLY_AND_PEPTIDE_LOADING_OF_CLASS_I_MHC	rank_mean	Class I MHC folding, assembly, peptide loading and presentation.
+REACTOME_MHC_II_ANTIGEN_PRESENTATION	MHC II antigen presentation	msigdbr	C2:CP:REACTOME	REACTOME_MHC_CLASS_II_ANTIGEN_PRESENTATION	rank_mean	Class II MHC antigen presentation.
+REACTOME_CHEMOKINE_RECEPTORS	Chemokine receptor binding	msigdbr	C2:CP:REACTOME	REACTOME_CHEMOKINE_RECEPTORS_BIND_CHEMOKINES	rank_mean	Immune-recruitment chemokine receptor ligand network.
+HALLMARK_EMT	EMT	msigdbr	H	HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION	rank_mean	Epithelial-mesenchymal transition and wound-repair program.
+HALLMARK_TGF_BETA_SIGNALING	TGF beta signaling	msigdbr	H	HALLMARK_TGF_BETA_SIGNALING	rank_mean	TGF beta downstream transcriptional response.
+REACTOME_ECM_ORGANIZATION	ECM organization	msigdbr	C2:CP:REACTOME	REACTOME_EXTRACELLULAR_MATRIX_ORGANIZATION	rank_mean	Extracellular matrix synthesis, remodeling and organization.
+REACTOME_COLLAGEN_FORMATION	Collagen formation	msigdbr	C2:CP:REACTOME	REACTOME_COLLAGEN_FORMATION	rank_mean	Collagen generation and assembly.
+KEGG_FOCAL_ADHESION	Focal adhesion	msigdbr	C2:CP:KEGG	KEGG_FOCAL_ADHESION	rank_mean	Cell-ECM mechanical connection and adhesion signaling.
+HALLMARK_HYPOXIA	Hypoxia	msigdbr	H	HALLMARK_HYPOXIA	rank_mean	Integrated HIF-associated hypoxia response.
+HALLMARK_ANGIOGENESIS	Angiogenesis	msigdbr	H	HALLMARK_ANGIOGENESIS	rank_mean	Angiogenic transcriptional response.
+HALLMARK_TNFA_NFKB	TNF/NF-kB	msigdbr	H	HALLMARK_TNFA_SIGNALING_VIA_NFKB	rank_mean	Peritumoral inflammation and stress response.
+HALLMARK_COMPLEMENT	Complement	msigdbr	H	HALLMARK_COMPLEMENT	rank_mean	Complement and inflammatory macrophage-linked activity.
+HALLMARK_UPR	Unfolded protein response	msigdbr	H	HALLMARK_UNFOLDED_PROTEIN_RESPONSE	rank_mean	Endoplasmic-reticulum stress and protein-folding pressure.
+HALLMARK_E2F_TARGETS	E2F targets	msigdbr	H	HALLMARK_E2F_TARGETS	rank_mean	Cell-cycle entry and proliferation.
+HALLMARK_G2M_CHECKPOINT	G2M checkpoint	msigdbr	H	HALLMARK_G2M_CHECKPOINT	rank_mean	G2/M cell-cycle checkpoint activity.
+HALLMARK_ADIPOGENESIS	Adipogenesis	msigdbr	H	HALLMARK_ADIPOGENESIS	rank_mean	Adipocyte identity and lipid-metabolic state.
+HALLMARK_CHOLESTEROL_HOMEOSTASIS	Cholesterol homeostasis	msigdbr	H	HALLMARK_CHOLESTEROL_HOMEOSTASIS	rank_mean	Lipid adaptation and cholesterol homeostasis.

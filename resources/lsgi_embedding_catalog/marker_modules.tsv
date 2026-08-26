@@ -1,0 +1,23 @@
+module_id	label	category	scorer	genes_up	genes_down	description
+CXCL9_MACROPHAGE	CXCL9 macrophage	immune_myeloid	zscore_mean	CXCL9,CXCL10,STAT1,IDO1,GBP1,IFIT1,ISG15		Inflammatory macrophage or IFN-response myeloid state.
+SPP1_MACROPHAGE	SPP1 macrophage	immune_myeloid	zscore_mean	SPP1,GPNMB,APOE,MMP9,VEGFA,SLC2A1,CTSK		Angiogenic and ECM-remodeling macrophage state.
+CD8_CYTOTOXICITY	CD8 cytotoxicity	immune_effector	zscore_mean	CD8A,CD8B,CCL5,NKG7,PRF1,GZMB,GNLY		Cytotoxic T/NK effector entry and killing.
+TUMOR_IFN_M5	Tumor IFN-M5	tumor_state	zscore_mean	ISG15,IFI6,IFI27,IFI44,IFIT1,IFIT2,IFIT3		Tumor-cell interferon response metaprogram.
+TUMOR_HLA_M6	Tumor HLA-M6	tumor_state	zscore_mean	HLA-A,HLA-B,HLA-C,HLA-E,CD74,HLA-DRA,HLA-DPA1,HLA-DPB1		Tumor antigen-presentation metaprogram.
+CAF_ECM_BARRIER	CAF-ECM barrier	stroma	zscore_mean	ASPN,FAP,MMP11,COL1A1,COL1A2,COL3A1,COL5A1,COL5A2,FN1,POSTN		CAF-associated physical ECM barrier.
+CONTRACTILE_BARRIER	Contractile barrier	stroma	zscore_mean	ACTA2,TAGLN,MYLK,TPM2,CALD1,CNN1		Contractile CAF or perivascular barrier.
+PEMT_INVASION	pEMT invasion	tumor_invasion	zscore_contrast	KRT7,KRT19,KRT81,ANXA1,LGALS3,VIM,FN1	CDH1	Partial EMT and invasive epithelial interface.
+LAMININ_332_INTERFACE	Laminin-332 interface	tumor_invasion	zscore_mean	LAMA3,LAMB3,LAMC2,ITGA6,ITGB4,MMP14		Basement-membrane remodeling and invasive interface.
+HYPOXIA	Hypoxia	hypoxia_metabolism	zscore_mean	NDRG1,VEGFA,EGLN3,CA9,SLC2A1,BNIP3		Hypoxia and metabolic stress.
+REDOX_SCORE	Redox score	redox_protection	zscore_mean	SLC7A11,GCLC,GCLM,GSS,GPX4,TXNRD1,NQO1		Antioxidant and glutathione-dependent redox protection score.
+BM_FRS	BM FRS	redox_protection	zscore_contrast	SLC7A11,GPX4	ACSL4	Ferroptosis-resistance score contrasting cystine transport and GPX4 against ACSL4.
+MYELOID_FOLR2_SUPPORT	Myeloid FOLR2 support	redox_support	zscore_mean	FOLR2,SPP1,TREM2,CSF1,IL6,TGFB1,CCL2,SLC19A1,MTHFD2,SHMT2		FOLR2-associated myeloid support for redox and one-carbon metabolism.
+CAF_REDOX_SUPPORT	CAF redox support	redox_support	zscore_mean	CXCL12,TGFB1,IL6,CCL2,FAP,POSTN		CAF-derived cytokine and matrix support linked to redox-protective niches.
+ENDOTHELIAL_REDOX_SUPPORT	Endothelial redox support	redox_support	zscore_mean	VEGFA,IL6,TGFB1,CCL2,PLVAP,PECAM1		Endothelial cytokine and permeability support linked to redox-protective niches.
+TLS_ORGANIZATION	TLS organization	immune_organization	zscore_mean	CXCL13,CCL19,CCL21,LTB,LTBR,MS4A1,CD79A,RGS13,AICDA,BCL6		Tertiary lymphoid structure organization and maturation.
+MATURE_ADIPOCYTE	Mature adipocyte	adipocyte	zscore_mean	ADIPOQ,PLIN1,PPARG,FABP4,CIDEA,CIDEC,LPL		Mature adipocyte identity.
+ADIPOCYTE_LIPOLYSIS_FIELD	Adipocyte lipolysis field	adipocyte	zscore_mean	HNF4A,LIPE,AQP7,CD36,BNIP3,CCL13,IGF1,FGF2		Peritumoral adipocyte lipolysis and growth-factor field.
+NORMAL_LIKE_ENDOTHELIUM	Normal-like endothelium	vascular	zscore_mean	ACKR1,SELENOP,APOD,FGF7,CAV1,CA4,RGCC		Normal-like vascular endothelial state.
+TUMOR_ENDOTHELIUM	Tumor endothelium	vascular	zscore_mean	PLVAP,KDR,FLT1,NRP1,PLXND1,POSTN,LAD1,MMP7,ENG		Abnormal angiogenic tumor endothelium.
+PERIVASCULAR_LYMPHATIC	Perivascular/lymphatic	vascular	zscore_mean	RGS5,PDGFRB,CSPG4,MCAM,LYVE1,PDPN,FLT4,CCL21		Perivascular and lymphatic drainage ecology.
+RESIDUAL_RECURRENCE	Residual recurrence	residual_disease	zscore_mean	S100A7,S100A9,CHI3L1,SLPI,SERPINA3,CASP14,URI1,AZGP1		Exploratory residual-disease or recurrence-associated state.

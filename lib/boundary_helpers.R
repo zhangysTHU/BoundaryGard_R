@@ -73,7 +73,8 @@ find_neighbors <- function(position, radius, method = c("manhattan", "euclidean"
   df_j2
 }
 
-ClusterUpdate <- function(MalCellIDN, position, df_j, UMAPembeddings, NormalCellID, BdyCellID, MalCellID, x) {
+ClusterUpdate <- function(MalCellIDN, position, df_j, UMAPembeddings, NormalCellID, BdyCellID, MalCellID, x,
+                          expand_mal_radius = 0.8) {
   # 第 x 轮边界扩展：
   # 对上一轮新 Mal spot 的未标注邻居，比较其到 Mal 中心和 Bdy 中心的 UMAP 距离，
   # 决定标为 Malx 还是 Bdy。
@@ -94,14 +95,14 @@ ClusterUpdate <- function(MalCellIDN, position, df_j, UMAPembeddings, NormalCell
     if (length(nBdyID) <= 1) {
       p <- lapply(nbrsID, function(id) sqrt(sum((npos[id, ] - CiMal)^2)))
       d <- data.frame(cellID = nbrsID, p1 = unlist(p), p2 = unlist(p))
-      d$cluster <- ifelse(d$p1 <= 0.8 * max(rMal), "Mal", "Bdy")
+      d$cluster <- ifelse(d$p1 <= expand_mal_radius * max(rMal), "Mal", "Bdy")
     } else {
       CiBdy <- data.frame(t(apply(npos[nBdyID, , drop = FALSE], 2, mean)))
       rBdy <- lapply(nBdyID, function(id) sqrt(sum((npos[id, ] - CiBdy)^2))) |> unlist()
       p1 <- lapply(nbrsID, function(id) sqrt(sum((npos[id, ] - CiMal)^2)))
       p2 <- lapply(nbrsID, function(id) sqrt(sum((npos[id, ] - CiBdy)^2)))
       d <- data.frame(cellID = nbrsID, p1 = unlist(p1), p2 = unlist(p2))
-      d$cluster <- ifelse(d$p1 <= 0.8 * max(rMal) & d$p2 > max(rBdy), "Mal", "Bdy")
+      d$cluster <- ifelse(d$p1 <= expand_mal_radius * max(rMal) & d$p2 > max(rBdy), "Mal", "Bdy")
     }
     d
   })
