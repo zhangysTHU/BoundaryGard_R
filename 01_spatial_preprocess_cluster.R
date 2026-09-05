@@ -1,16 +1,54 @@
-# 02：H&E 形态校正聚类。
-# 输入：intermediate/01_TumorST_preprocessed.rds.gz。
-# 输出：
-# - intermediate/02_TumorST_clustered.rds.gz：Seurat 对象，新增 Morph assay、PCA/UMAP、seurat_clusters、NormalScore。
-# - intermediate/InferCNV/CellAnnotation.txt：两列无表头，CellID 和 seurat_clusters，供 03 inferCNV 分组。
-# - output/02_morphology_cluster/CRC1_tile/：stLearn 切出的 H&E tiles。
-# - output/02_morphology_cluster/*Cluster.pdf 和 *NormalScore.pdf：聚类与正常细胞 marker 分数图。
-# 下游：03 用 cluster/NormalScore 选择 inferCNV reference；05 用 UMAP 和 cluster 做边界。
+# 01: Spatial preprocessing, QC, morphology-adjusted clustering.
+
 script_file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(script_file_arg) > 0) dirname(normalizePath(sub("^--file=", "", script_file_arg[[1]]), winslash = "/", mustWork = FALSE)) else normalizePath(getwd(), winslash = "/", mustWork = FALSE)
 source(file.path(script_dir, "00_config.R"))
-load_required_packages(c("Seurat", "Matrix", "reticulate", "ggplot2", "ggpubr", "cowplot", "readr"))
+load_required_packages(c("Seurat", "Matrix", "reticulate", "ggplot2", "ggpubr", "cowplot", "openxlsx", "readr"))
 
+# 01A: preprocess ST.
+out_dir <- file.path(paths$output, "01_preprocess")
+dir.create(file.path(out_dir, "QC"), recursive = TRUE, showWarnings = FALSE)
+
+# Space Ranger 可能提供 matrix 目录，也可能提供 filtered_feature_bc_matrix.h5；两者择一读取。
+matrix_dir <- file.path(paths$spaceranger, "filtered_feature_bc_matrix")
+h5_file <- file.path(paths$spaceranger, "filtered_feature_bc_matrix.h5")
+spatial_dir <- file.path(paths$spaceranger, "spatial")
+
+if (dir.exists(matrix_dir)) {
+  xdata <- Seurat::Read10X(data.dir = matrix_dir)
+} else if (file.exists(h5_file)) {
+  xdata <- Seurat::Read10X_h5(filename = h5_file)
+} else {
+  stop("No Space Ranger expression matrix found under input/spaceranger_outs.", call. = FALSE)
+}
+
+# 构建 Seurat 对象，并把 H&E 图像对象挂到 image slot，供 SpatialDimPlot/SpatialFeaturePlot 使用。
+TumorST <- Seurat::CreateSeuratObject(counts = xdata, project = sample_name, min.cells = 0, assay = "Spatial")
+Ximage <- Seurat::Read10X_Image(image.dir = spatial_dir)
+Seurat::DefaultAssay(Ximage) <- "Spatial"
+Ximage <- Ximage[colnames(TumorST)]
+TumorST[["image"]] <- Ximage
+
+# 线粒体比例是空间/单细胞 QC 常用指标，后续不直接过滤，但用于人工检查样本质量。
+TumorST[["Mito.percent"]] <- Seurat::PercentageFeatureSet(TumorST, pattern = "^MT-")
+
+pdf(file.path(out_dir, "QC", "Vlnplot.pdf"), width = 6, height = 4)
+p <- Seurat::VlnPlot(TumorST, features = c("nFeature_Spatial", "nCount_Spatial", "Mito.percent"), pt.size = 0, combine = FALSE)
+p <- lapply(p, function(x) x + Seurat::NoLegend() + ggplot2::theme(axis.title.x = ggplot2::element_blank(), axis.text.x = ggplot2::element_text(angle = 0)))
+print(cowplot::plot_grid(plotlist = p, ncol = 3))
+dev.off()
+
+pdf(file.path(out_dir, "QC", "featureplot.pdf"), width = 7, height = 7)
+p <- Seurat::SpatialFeaturePlot(TumorST, features = c("nFeature_Spatial", "nCount_Spatial", "Mito.percent"), combine = FALSE)
+p <- lapply(p, function(x) x + ggplot2::theme(axis.title.x = ggplot2::element_blank(), axis.text.x = ggplot2::element_text(angle = 0)))
+print(cowplot::plot_grid(plotlist = p, ncol = 3))
+dev.off()
+
+QCData <- TumorST@meta.data[, c("nCount_Spatial", "nFeature_Spatial", "Mito.percent")]
+openxlsx::write.xlsx(QCData, file.path(out_dir, "QC", "QCData.xlsx"), overwrite = TRUE)
+readr::write_rds(TumorST, file.path(paths$intermediate, "01_TumorST_preprocessed.rds.gz"), compress = "gz")
+
+# 01B: morphology-adjusted clustering.
 out_dir <- file.path(paths$output, "02_morphology_cluster")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 

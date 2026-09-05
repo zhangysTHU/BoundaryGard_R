@@ -1,12 +1,12 @@
 # 00：R 版流水线全局配置。
 # 本脚本不产生生物学结果；它负责固定随机种子、定位 scripts_format_R 根目录、
-# 创建 input/intermediate/output/resources/lib 等目录，并集中管理所有主脚本共享的参数。
+# 创建 input/intermediate/output/resources 等目录，并集中管理所有主脚本共享的参数。
 # input/<样本名>/ 存放输入；intermediate/<样本名>/ 通常存放下一步真正读取的
 # RDS/TSV 中间结果；output/<样本名>/ 存放图表、表格和可直接用于下游分析的结构化结果矩阵。
 options(stringsAsFactors = FALSE)
 set.seed(666)
 
-# 空值合并操作符：x 为 NULL 时使用默认值 y，11_lsgi_gradient.R 中也会用到。
+# 空值合并操作符：x 为 NULL 时使用默认值 y，04_lsgi_gradient.R 中也会用到。
 `%||%` <- function(x, y) {
   if (is.null(x)) y else x
 }
@@ -47,8 +47,7 @@ paths <- list(
   single_cell = file.path(sample_input_dir, "single_cell"),
   intermediate = sample_intermediate_dir,
   output = sample_output_dir,
-  resources = file.path(script_dir, "resources"),
-  lib = file.path(script_dir, "lib")
+  resources = file.path(script_dir, "resources")
 )
 
 invisible(lapply(c(input_root, intermediate_root, output_root, unlist(paths)), dir.create, recursive = TRUE, showWarnings = FALSE))
@@ -80,6 +79,21 @@ env_int <- function(name, default) {
     stop(name, " must be an integer >= 1; got ", sQuote(value), call. = FALSE)
   }
   parsed
+}
+
+env_bool <- function(name, default) {
+  value <- Sys.getenv(name, unset = "")
+  if (identical(value, "")) {
+    return(default)
+  }
+  parsed <- tolower(trimws(value))
+  if (parsed %in% c("1", "true", "t", "yes", "y")) {
+    return(TRUE)
+  }
+  if (parsed %in% c("0", "false", "f", "no", "n")) {
+    return(FALSE)
+  }
+  stop(name, " must be boolean; got ", sQuote(value), call. = FALSE)
 }
 
 env_chr_vec <- function(name, default = NULL) {
@@ -119,7 +133,7 @@ params <- list(
   python_bin = python_bin,
   # inferCNV/CNV 聚类结果中被视为恶性肿瘤区域的标签。
   # 这里的标签必须与上游 CNVLabel/CNV cluster 结果中的字符标签完全一致。
-  # 默认设为 NULL，表示不在 00_config.R 中写死标签；05_define_boundary.R 会根据
+  # 默认设为 NULL，表示不在 00_config.R 中写死标签；02_boundary_definition.R 会根据
   # 每个 CNVLabel 的 cnv_score 中位数自动选出最高的 2 个有效 Observation 标签。
   # 注意：CNVLabel 的数字编号本身通常只是聚类编号，不一定代表恶性程度高低；
   # 因此自动选择依据是 cnv_score，而不是简单取数值最大的 label 名。
@@ -128,7 +142,7 @@ params <- list(
   malignant_cnv_labels = NULL,
   boundary_run_id = env_chr("COTTRAZM_BOUNDARY_RUN_ID", NULL),
   # 边界识别步骤专用的恶性 CNV 标签。
-  # 默认同样设为 NULL，使 05_define_boundary.R 自动从 cnv_score 最高的 2 个
+  # 默认同样设为 NULL，使 02_boundary_definition.R 自动从 cnv_score 最高的 2 个
   # CNVLabel 生成恶性种子。也可以通过环境变量 COTTRAZM_BOUNDARY_MALIGNANT_CNV_LABELS
   # 覆盖，例如 "6,8"；若设为 "null"、"none" 或 "auto"，会返回 NULL 并保持自动选择。
   boundary_malignant_cnv_labels = env_chr_vec("COTTRAZM_BOUNDARY_MALIGNANT_CNV_LABELS", NULL),
@@ -137,7 +151,7 @@ params <- list(
   boundary_expand_mal_radius = env_num("COTTRAZM_BOUNDARY_EXPAND_MAL_RADIUS", 1.0),
   boundary_max_rounds = env_int("COTTRAZM_BOUNDARY_MAX_ROUNDS", 6),
   # 反卷积矩阵或单细胞注释中代表恶性上皮细胞的细胞类型名称。
-  # 该名称必须与 07_spatial_deconvolution.R 读取到的细胞类型列名/注释名完全一致；
+  # 该名称必须与 03_spatial_deconvolution.R 读取到的细胞类型列名/注释名完全一致；
   # 如果输入数据使用 "Malignant"、"Tumor epithelial" 等其他命名，需要在这里同步修改。
   decon_malignant_cluster = "Malignant epithelial cells",
   # 反卷积中用于表示非恶性/总体上皮组织成分的细胞类型名称。
@@ -146,7 +160,7 @@ params <- list(
   # 反卷积中代表基质细胞的细胞类型名称，默认使用成纤维细胞。
   # 如果单细胞参考中基质细胞被命名为 "Fibroblasts"、"CAF" 或其他标签，需要改成实际名称。
   decon_stromal_cluster = "Fibroblast cells",
-  # 空间重构步骤选取的 Location 区域。
+  # 可选 08 空间重构步骤选取的 Location 区域。
   # 默认只重构边界区域 Bdy；该值必须存在于 TumorST@meta.data$Location 中。
   # 若需要同时分析多个区域，可改为字符向量，例如 c("Bdy", "Tumor")。
   recon_locations = "Bdy",
@@ -174,7 +188,7 @@ params <- list(
   lsgi_arrow_head_angle_r2_max = 0.7,
   lsgi_arrow_head_angle_step = 1,
   lsgi_arrow_closed = TRUE,
-  # 12_boundary_related_lsgi_arrows.R 默认使用的边界相关箭头筛选策略。
+  # 05_boundary_related_lsgi_arrows.R 默认使用的边界相关箭头筛选策略。
   # 当前默认 local_broad：LSGI local regression 邻域中 Bdy spot 数量 >= 5 且比例 >= 0.10。
   # 可选值：
   # - local_broad, local_relaxed, local_primary, local_strict
@@ -182,6 +196,39 @@ params <- list(
   # - primary_consensus, primary_union
   # - all 表示遍历全部内置策略；也可用逗号分隔多个策略，例如 "local_broad,primary_union"。
   boundary_lsgi_arrow_strategy = env_chr("COTTRAZM_BOUNDARY_LSGI_ARROW_STRATEGY", "local_broad"),
+  # 06_tumor_arrow_guided_boundary_profile.R 默认参数。
+  # 使用 05 中已经筛选出的 tumor/cancer epithelial arrows 作为局部跨边界 profile 的方向轴。
+  tumor_profile_strategy = env_chr("COTTRAZM_TUMOR_PROFILE_STRATEGY", "local_broad"),
+  tumor_profile_tumor_components = env_chr_vec(
+    "COTTRAZM_TUMOR_PROFILE_TUMOR_COMPONENTS",
+    c("Cancer.Epithelial", "Tumor")
+  ),
+  tumor_profile_methods = env_chr_vec(
+    "COTTRAZM_TUMOR_PROFILE_METHODS",
+    c("cell_component", "marker_module", "single_gene")
+  ),
+  tumor_profile_positive_control_features = env_chr_vec(
+    "COTTRAZM_TUMOR_PROFILE_POSITIVE_CONTROL_FEATURES",
+    c("Cancer.Epithelial")
+  ),
+  tumor_profile_features = env_chr_vec(
+    "COTTRAZM_TUMOR_PROFILE_FEATURES",
+    c(
+      "REDOX_SCORE", "BM_FRS", "MYELOID_FOLR2_SUPPORT",
+      "CAF_REDOX_SUPPORT", "ENDOTHELIAL_REDOX_SUPPORT",
+      "SLC7A11", "GPX4", "ACSL4", "GCLC", "GCLM", "GSS", "TXNRD1", "NQO1"
+    )
+  ),
+  tumor_profile_tube_half_width_mode = env_chr("COTTRAZM_TUMOR_PROFILE_TUBE_HALF_WIDTH_MODE", "half_pitch"),
+  tumor_profile_zero_width_modes = env_chr_vec(
+    "COTTRAZM_TUMOR_PROFILE_ZERO_WIDTH_MODES",
+    c("spot_radius", "half_pitch")
+  ),
+  tumor_profile_bin_width_mode = env_chr("COTTRAZM_TUMOR_PROFILE_BIN_WIDTH_MODE", "half_pitch"),
+  tumor_profile_bdy_cluster_gap_mode = env_chr("COTTRAZM_TUMOR_PROFILE_BDY_CLUSTER_GAP_MODE", "one_pitch"),
+  tumor_profile_min_profile_spots = env_int("COTTRAZM_TUMOR_PROFILE_MIN_PROFILE_SPOTS", 3),
+  tumor_profile_require_normal_spot = env_bool("COTTRAZM_TUMOR_PROFILE_REQUIRE_NORMAL_SPOT", TRUE),
+  tumor_profile_normal_location = env_chr("COTTRAZM_TUMOR_PROFILE_NORMAL_LOCATION", "nMal"),
   # LSGI 箭头长度归一化方式：
   # "global" 表示所有细胞组分的箭头一起归一化，长度可跨组分比较；
   # "by_component" 表示每个细胞组分内部单独归一化，只比较同一组分内的梯度强弱。
@@ -195,7 +242,7 @@ params <- list(
   lsgi_expression_scale_factor = 10000,
   # gene set/module 至少需要命中这么多个正向基因才进入 LSGI；single_gene 固定按 1 个基因处理。
   lsgi_min_feature_genes = 2,
-  # NMF 自动 k 选择参数；11_lsgi_gradient.R 会在这些 k 上做 singlet cross-validation。
+  # NMF 自动 k 选择参数；04_lsgi_gradient.R 会在这些 k 上做 singlet cross-validation。
   lsgi_nmf_ranks = 6:10,
   lsgi_nmf_cv_replicates = 3,
   lsgi_nmf_cv_tol = 1e-3,
@@ -215,7 +262,7 @@ params <- list(
   lsgi_nmf_scale_factor = 10000,
   lsgi_nmf_seed = 666,
   # 以下 ID 必须存在于 resources/lsgi_embedding_catalog/marker_modules.tsv。
-  # 设为 character(0) 或 NULL 时，11_lsgi_gradient.R 会计算该 TSV 中所有条目。
+  # 设为 character(0) 或 NULL 时，04_lsgi_gradient.R 会计算该 TSV 中所有条目。
   lsgi_marker_module_ids = c(
     "CXCL9_MACROPHAGE", "SPP1_MACROPHAGE", "CD8_CYTOTOXICITY",
     "TUMOR_IFN_M5", "TUMOR_HLA_M6", "CAF_ECM_BARRIER",

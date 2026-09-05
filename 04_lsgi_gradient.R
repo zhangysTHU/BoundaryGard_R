@@ -1,4 +1,4 @@
-# 11: LSGI gradient analysis for multiple embedding/component sources.
+# 04: LSGI gradient analysis for multiple embedding/component sources.
 # Common grid and spot-membership outputs are written under output/<sample>/11_lsgi_gradient/.
 # Method-specific arrows, plots, and summaries are written under method subdirectories, e.g.
 # output/<sample>/11_lsgi_gradient/cell_component/ and output/<sample>/11_lsgi_gradient/nmf/.

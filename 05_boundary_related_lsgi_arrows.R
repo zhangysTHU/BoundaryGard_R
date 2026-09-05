@@ -1,10 +1,9 @@
-# 12：筛选边界相关 LSGI arrows，并按 11 的多 module/method 输出格式绘图。
+# 05：筛选边界相关 LSGI arrows，并按 LSGI 多 module/method 输出格式绘图。
 # 输入：
 # - output/<sample>/11_lsgi_gradient/<module>/arrow_tables/arrows_by_grid.csv
 # - output/<sample>/11_lsgi_gradient/grid_partition_membership.csv
 # - output/<sample>/11_lsgi_gradient/grid_local_spot_membership.csv
-# - output/<sample>/07/spot_matrix_pre_lsgi.csv 或 output/<sample>/07_spatial_deconvolution/spot_matrix_pre_lsgi.csv：
-#   07 现在写在 output 中；这里用于补充 spot 反卷积信息。
+# - output/<sample>/07_spatial_deconvolution/spot_matrix_pre_lsgi.csv：用于补充 spot 反卷积信息。
 # 输出：
 # - output/<sample>/12_boundary_related_lsgi_arrows/<module>/strategy_summary.csv
 # - output/<sample>/12_boundary_related_lsgi_arrows/<module>/arrow_tables/*_arrows.csv
