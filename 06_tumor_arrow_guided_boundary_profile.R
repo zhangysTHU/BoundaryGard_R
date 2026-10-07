@@ -5,7 +5,9 @@
 script_file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(script_file_arg) > 0) dirname(normalizePath(sub("^--file=", "", script_file_arg[[1]]), winslash = "/", mustWork = FALSE)) else normalizePath(getwd(), winslash = "/", mustWork = FALSE)
 source(file.path(script_dir, "00_config.R"))
-load_required_packages(c("readr", "dplyr", "tibble", "ggplot2", "jsonlite"))
+source(file.path(script_dir, "R", "boundarygrad_core.R"))
+source(file.path(script_dir, "R", "spatial_plot_core.R"))
+load_required_packages(c("readr", "dplyr", "tibble", "ggplot2", "jsonlite", "png", "grid", "patchwork"))
 
 parse_cli_options <- function(args) {
   opts <- list()
@@ -485,26 +487,28 @@ make_patch_rectangles <- function(patches_df) {
   dplyr::bind_rows(rows)
 }
 
-make_profile_plot_arrow_df <- function(df, component_levels, fallback_length_px) {
+make_profile_plot_arrow_df <- function(df, component_levels, arrow_length_scale) {
   empty <- data.frame()
   if (nrow(df) == 0) return(empty)
   if (!"arrow_head_angle_mapped" %in% colnames(df)) {
     df$arrow_head_angle_mapped <- arrow_head_angle
   }
-  plot_length <- ifelse(
-    is.finite(df$plotted_length) & df$plotted_length > 0,
-    df$plotted_length,
-    fallback_length_px
+  out <- sp_prepare_arrows(
+    df,
+    arrow_length_scale = arrow_length_scale,
+    x_col = "arrow_X",
+    y_col = "arrow_Y",
+    vx_col = "arrow_vx_u",
+    vy_col = "arrow_vy_u",
+    flip_y = TRUE
   )
-  data.frame(
-    X = as.numeric(df$arrow_X),
-    Y = as.numeric(df$arrow_Y),
-    X_end = as.numeric(df$arrow_X) + as.numeric(df$arrow_unit_vx) * plot_length,
-    Y_end = as.numeric(df$arrow_Y) + as.numeric(df$arrow_unit_vy) * plot_length,
-    component = factor(as.character(df$tumor_component), levels = component_levels),
-    arrow_head_angle_mapped = ifelse(is.finite(df$arrow_head_angle_mapped), df$arrow_head_angle_mapped, arrow_head_angle),
-    stringsAsFactors = FALSE
+  out$component <- factor(as.character(out$tumor_component), levels = component_levels)
+  out$arrow_head_angle_mapped <- ifelse(
+    is.finite(out$arrow_head_angle_mapped),
+    out$arrow_head_angle_mapped,
+    arrow_head_angle
   )
+  out
 }
 
 add_profile_arrows <- function(p, arrow_df, component_palette = NULL, legend_title = "Tumor arrow", fixed_color = NULL, color_drop = FALSE) {
@@ -551,17 +555,22 @@ add_profile_arrows <- function(p, arrow_df, component_palette = NULL, legend_tit
 
 make_boundary_spot_base <- function(point_df, title_text) {
   point_df$Location <- factor(as.character(point_df$Location), levels = names(boundary_cols))
-  ggplot2::ggplot(point_df, ggplot2::aes(x = X, y = Y, fill = Location)) +
-    ggplot2::geom_point(shape = 21, size = 1.8, stroke = 0.1, color = "grey25", alpha = 0.9, na.rm = TRUE) +
-    ggplot2::scale_fill_manual(values = boundary_cols, drop = FALSE) +
-    ggplot2::scale_y_reverse() +
-    ggplot2::coord_fixed() +
-    ggplot2::theme_void() +
-    ggplot2::theme(legend.position = "right") +
-    ggplot2::ggtitle(title_text)
+  spot_polygons <- sp_make_spot_polygons(
+    point_df,
+    plot_context,
+    segments = params$spatial_plot_spot_segments %||% 24L
+  )
+  sp_boundary_base(
+    spot_polygons,
+    plot_context,
+    boundary_cols,
+    title = title_text,
+    show_image = plot_context$has_image
+  )
 }
 
 cli_opts <- parse_cli_options(commandArgs(trailingOnly = TRUE))
+plot_mode <- bg_validate_plot_mode(get_opt(cli_opts, "plot-mode", default = params$plot_mode %||% "full"))
 
 lsgi_dir <- file.path(paths$output, "11_lsgi_gradient")
 boundary_arrow_dir <- file.path(paths$output, "12_boundary_related_lsgi_arrows")
@@ -592,7 +601,8 @@ bdy_cluster_gap_mode <- as.character(get_opt(cli_opts, "bdy-cluster-gap-mode", d
 min_profile_spots <- as.integer(as.numeric(get_opt(cli_opts, "min-profile-spots", default = params$tumor_profile_min_profile_spots %||% 3)))
 require_normal_spot <- as_bool(get_opt(cli_opts, "require-normal-spot", default = params$tumor_profile_require_normal_spot %||% TRUE))
 normal_location <- as.character(get_opt(cli_opts, "normal-location", default = params$tumor_profile_normal_location %||% "nMal"))
-plot_space <- as_bool(get_opt(cli_opts, "plot-space", default = TRUE))
+plot_space <- identical(plot_mode, "full") &&
+  as_bool(get_opt(cli_opts, "plot-space", default = TRUE))
 clean_output <- as_bool(get_opt(cli_opts, "clean-output", default = TRUE))
 out_dir <- as.character(get_opt(
   cli_opts,
@@ -601,6 +611,11 @@ out_dir <- as.character(get_opt(
 ))
 arrow_linewidth <- as.numeric(params$lsgi_arrow_linewidth %||% 1.0)
 arrow_head_cm <- as.numeric(params$lsgi_arrow_head_cm %||% 0.20)
+arrow_length_scale <- as.numeric(get_opt(
+  cli_opts,
+  "arrow-length-scale",
+  default = params$lsgi_arrow_length_scale %||% 1.4
+))
 arrow_head_angle <- as.numeric(params$lsgi_arrow_head_angle %||% 30)
 arrow_closed <- as_bool(params$lsgi_arrow_closed %||% TRUE)
 arrow_type <- if (arrow_closed) "closed" else "open"
@@ -621,17 +636,24 @@ if (!nzchar(normal_location)) {
   stop("--normal-location must be a non-empty Location label.", call. = FALSE)
 }
 
+bg_assert_safe_child(out_dir, paths$output, "profile output directory")
 if (dir.exists(out_dir) && clean_output) {
   unlink(out_dir, recursive = TRUE, force = TRUE)
 }
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 plot_dir <- file.path(out_dir, "plots")
 profile_plot_dir <- file.path(plot_dir, "distance_profiles")
-dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
-dir.create(profile_plot_dir, recursive = TRUE, showWarnings = FALSE)
+if (!identical(plot_mode, "none")) {
+  dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(profile_plot_dir, recursive = TRUE, showWarnings = FALSE)
+}
 
 spatial_dir <- file.path(paths$spaceranger, "spatial")
 dims <- estimate_spot_dimensions(spatial_dir)
+plot_context <- sp_read_context(paths$spaceranger, load_image = plot_space)
+if (!isTRUE(all.equal(dims$spot_diameter_px, plot_context$spot_diameter_lowres, tolerance = 1e-10))) {
+  stop("Inconsistent low-resolution spot diameter between profile and plotting geometry.", call. = FALSE)
+}
 tube_half_width_px <- resolve_px_mode(tube_half_width_mode, dims, "tube half-width")
 zero_width_px <- vapply(zero_width_modes, resolve_px_mode, numeric(1), dims = dims, label = "zero-width")
 bin_width_px <- resolve_px_mode(bin_width_mode, dims, "bin-width")
@@ -649,7 +671,7 @@ spot_membership_path <- file.path(lsgi_dir, "spot_grid_membership.csv")
 
 arrows <- read_csv_df(arrow_path)
 local_df <- read_csv_df(local_membership_path)
-required_arrow_cols <- c("grid", "component", "X", "Y", "vx", "vy")
+required_arrow_cols <- c("grid", "component", "X", "Y", "vx", "vy", "vx.u", "vy.u")
 missing_arrow_cols <- setdiff(required_arrow_cols, colnames(arrows))
 if (length(missing_arrow_cols) > 0) {
   stop("Arrow table is missing column(s): ", paste(missing_arrow_cols, collapse = ", "), call. = FALSE)
@@ -718,6 +740,8 @@ for (i in seq_len(nrow(tumor_arrows))) {
     arrow_Y = arrow_y,
     arrow_vx = as.numeric(arrow$vx[[1]]),
     arrow_vy = as.numeric(arrow$vy[[1]]),
+    arrow_vx_u = as.numeric(arrow[["vx.u"]][[1]]),
+    arrow_vy_u = as.numeric(arrow[["vy.u"]][[1]]),
     arrow_direction_source = direction_source,
     arrow_unit_vx = NA_real_,
     arrow_unit_vy = NA_real_,
@@ -785,40 +809,30 @@ for (i in seq_len(nrow(tumor_arrows))) {
     next
   }
 
-  unit_v <- direction / direction_norm
-  unit_t <- c(-unit_v[2], unit_v[1])
-  rel <- cbind(as.numeric(local_spots$X) - arrow_x, as.numeric(local_spots$Y) - arrow_y)
-  axis_s <- as.numeric(rel %*% unit_v)
-  lateral_signed <- as.numeric(rel %*% unit_t)
+  projection <- bg_project_axis(
+    local_spots$X, local_spots$Y, arrow_x, arrow_y,
+    direction[[1]], direction[[2]]
+  )
+  unit_v <- projection$unit_v
+  unit_t <- projection$unit_t
+  axis_s <- projection$axis_s
+  lateral_signed <- projection$lateral_signed
   lateral_abs <- abs(lateral_signed)
   local_radius_px <- base_patch$local_radius_px[[1]]
   finite_extension <- is.finite(axis_s) & abs(axis_s) <= local_radius_px
 
-  zero_found <- FALSE
-  zero_idx <- NA_integer_
-  zero_mode <- NA_character_
-  zero_px <- NA_real_
-  zero_candidate_count <- 0L
-  for (mode_i in seq_along(zero_width_modes)) {
-    mode <- zero_width_modes[[mode_i]]
-    width_px <- zero_width_px[[mode_i]]
-    candidates <- which(
-      local_spots$Location == "Bdy" &
-        lateral_abs <= width_px &
-        finite_extension
-    )
-    zero_candidate_count <- zero_candidate_count + length(candidates)
-    if (length(candidates) == 0) next
-    ord <- order(lateral_abs[candidates], abs(axis_s[candidates]), as.numeric(local_spots$local_rank[candidates]))
-    zero_idx <- candidates[ord[1]]
-    zero_found <- TRUE
-    zero_mode <- mode
-    zero_px <- width_px
-    break
-  }
-
-  zero_s <- if (zero_found) axis_s[[zero_idx]] else 0
-  profile_x <- axis_s - zero_s
+  zero <- bg_select_zero_spot(
+    local_spots$Location, lateral_abs, axis_s, finite_extension,
+    local_spots$local_rank, zero_width_modes, zero_width_px
+  )
+  zero_found <- zero$found
+  zero_idx <- zero$index
+  zero_mode <- zero$mode
+  zero_px <- zero$width
+  zero_candidate_count <- zero$candidate_count
+  centered_axis <- bg_center_axis_on_zero(axis_s, zero_idx)
+  zero_s <- centered_axis$zero_s
+  profile_x <- centered_axis$profile_x
   negative_limit <- -local_radius_px
   positive_limit <- local_radius_px
   bdy_tube_idx <- which(
@@ -1203,7 +1217,7 @@ boundary_tests <- make_band_tests(patch_bin_primary, bin_width_px)
 readr::write_csv(boundary_tests, file.path(out_dir, "feature_boundary_tests.csv"))
 
 primary_summary <- profile_summary[profile_summary$analysis_set == "primary_cross_boundary", , drop = FALSE]
-if (nrow(primary_summary) > 0) {
+if (!identical(plot_mode, "none") && nrow(primary_summary) > 0) {
   combos <- unique(primary_summary[, c("component_method", "feature"), drop = FALSE])
   for (i in seq_len(nrow(combos))) {
     method_id <- combos$component_method[i]
@@ -1296,7 +1310,9 @@ p_qc <- ggplot2::ggplot(qc_counts, ggplot2::aes(x = profile_class_label, y = n_p
     y = "Patches"
   ) +
   ggplot2::theme_bw(base_size = 10)
-ggplot2::ggsave(file.path(plot_dir, "patch_qc_profile_class.pdf"), p_qc, width = 5.5, height = 4)
+if (!identical(plot_mode, "none")) {
+  ggplot2::ggsave(file.path(plot_dir, "patch_qc_profile_class.pdf"), p_qc, width = 5.5, height = 4)
+}
 
 if (plot_space) {
   if (file.exists(spot_membership_path)) {
@@ -1312,36 +1328,43 @@ if (plot_space) {
   all_spots$X <- as.numeric(all_spots$X)
   all_spots$Y <- as.numeric(all_spots$Y)
   all_spots$Location <- factor(as.character(all_spots$Location), levels = names(boundary_cols))
-  plot_patches <- patches[is.finite(patches$arrow_unit_vx) & is.finite(patches$arrow_unit_vy), , drop = FALSE]
+  plot_patches <- patches[
+    is.finite(patches$arrow_unit_vx) & is.finite(patches$arrow_unit_vy) &
+      is.finite(patches$arrow_vx_u) & is.finite(patches$arrow_vy_u),
+    ,
+    drop = FALSE
+  ]
   component_levels <- sort(unique(as.character(plot_patches$tumor_component)))
   component_palette <- stats::setNames(
     grDevices::hcl.colors(length(component_levels), palette = "Dark 3"),
     component_levels
   )
-  plot_arrows <- make_profile_plot_arrow_df(plot_patches, component_levels, dims$spot_pitch_px * 2)
+  plot_arrows <- make_profile_plot_arrow_df(plot_patches, component_levels, arrow_length_scale)
   zero_points <- plot_patches[plot_patches$zero_found, , drop = FALSE]
+  zero_points_plot <- zero_points
+  zero_points_plot$zero_axis_Y <- -zero_points_plot$zero_axis_Y
   profile_points <- unique(profile_spots[profile_spots$in_profile, c("cell_ID", "X", "Y", "Location"), drop = FALSE])
   profile_points$X <- as.numeric(profile_points$X)
   profile_points$Y <- as.numeric(profile_points$Y)
+  profile_spot_polygons <- sp_make_spot_polygons(
+    profile_points,
+    plot_context,
+    segments = params$spatial_plot_spot_segments %||% 24L
+  )
 
   p_space <- make_boundary_spot_base(
     all_spots,
     paste(sample_name, "tumor-arrow-guided profile patches")
   ) +
-    ggplot2::geom_point(
-      data = profile_points,
-      ggplot2::aes(x = X, y = Y),
-      inherit.aes = FALSE,
-      shape = 21,
-      size = 1.8,
-      stroke = 0.25,
-      color = "grey5",
+    sp_spot_layer(
+      profile_spot_polygons,
       fill = NA,
+      colour = "grey5",
       alpha = 0.6,
-      na.rm = TRUE
+      linewidth = 0.25
     ) +
     ggplot2::geom_point(
-      data = zero_points,
+      data = zero_points_plot,
       ggplot2::aes(x = zero_axis_X, y = zero_axis_Y),
       inherit.aes = FALSE,
       shape = 4,
@@ -1355,9 +1378,17 @@ if (plot_space) {
     component_palette,
     legend_title = "cell_component"
   )
-  ggplot2::ggsave(file.path(plot_dir, "tumor_arrow_profile_patches_space.pdf"), p_space, width = 8, height = 7)
+  sp_save_plot(
+    p_space,
+    file.path(plot_dir, "tumor_arrow_profile_patches_space.pdf"),
+    width = params$spatial_plot_width %||% 8,
+    height = params$spatial_plot_height %||% 7,
+    map_width = params$spatial_plot_map_width %||% 6.45,
+    legend_width = params$spatial_plot_legend_width %||% 1.55
+  )
 
   plot_rectangles <- patch_rectangles
+  plot_rectangles$Y <- -plot_rectangles$Y
   plot_rectangles$profile_class_label <- profile_class_label_factor(plot_rectangles$profile_class)
   rectangle_cols <- c(
     "cross-boundary\nzero found" = "#08519c",
@@ -1403,20 +1434,15 @@ if (plot_space) {
     }
   }
   p_rectangles <- p_rectangles +
-    ggplot2::geom_point(
-      data = profile_points,
-      ggplot2::aes(x = X, y = Y),
-      inherit.aes = FALSE,
-      shape = 21,
-      size = 1.8,
-      stroke = 0.25,
-      color = "grey5",
+    sp_spot_layer(
+      profile_spot_polygons,
       fill = NA,
+      colour = "grey5",
       alpha = 0.5,
-      na.rm = TRUE
+      linewidth = 0.25
     ) +
     ggplot2::geom_point(
-      data = zero_points,
+      data = zero_points_plot,
       ggplot2::aes(x = zero_axis_X, y = zero_axis_Y),
       inherit.aes = FALSE,
       shape = 4,
@@ -1430,7 +1456,14 @@ if (plot_space) {
     plot_arrows,
     fixed_color = "grey20"
   )
-  ggplot2::ggsave(file.path(plot_dir, "tumor_arrow_profile_tube_rectangles_space.pdf"), p_rectangles, width = 8, height = 7)
+  sp_save_plot(
+    p_rectangles,
+    file.path(plot_dir, "tumor_arrow_profile_tube_rectangles_space.pdf"),
+    width = params$spatial_plot_width %||% 8,
+    height = params$spatial_plot_height %||% 7,
+    map_width = params$spatial_plot_map_width %||% 6.45,
+    legend_width = params$spatial_plot_legend_width %||% 1.55
+  )
 }
 
 summary_path <- file.path(out_dir, "run_summary_06.txt")
@@ -1452,6 +1485,8 @@ cat("Tissue positions:", dims$tissue_positions_path, "\n")
 cat("spot_diameter_px:", dims$spot_diameter_px, "\n")
 cat("spot_radius_px:", dims$spot_radius_px, "\n")
 cat("spot_pitch_px:", dims$spot_pitch_px, "\n")
+cat("arrow_length_scale:", arrow_length_scale, "\n")
+cat("spatial_canvas_inches:", params$spatial_plot_width %||% 8, "x", params$spatial_plot_height %||% 7, "\n")
 cat("tube_half_width_mode:", tube_half_width_mode, "\n")
 cat("tube_half_width_px:", tube_half_width_px, "\n")
 cat("zero_width_modes:", paste(zero_width_modes, collapse = ","), "\n")

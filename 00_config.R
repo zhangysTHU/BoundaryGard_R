@@ -33,24 +33,49 @@ python_bin <- Sys.getenv(
   unset = file.path(conda_root, "envs", python_conda_env, "bin", "python")
 )
 
-# 所有路径均相对 scripts_format_R。
-input_root <- file.path(script_dir, "input")
-intermediate_root <- file.path(script_dir, "intermediate")
-output_root <- file.path(script_dir, "output")
+# 默认路径仍相对 scripts_format_R；批量或 benchmark 运行必须通过独立 run root
+# 或三个显式 root 覆盖，避免不同 scenario 共享可写目录。
+resolve_configured_path <- function(name, default) {
+  value <- Sys.getenv(name, unset = "")
+  path <- if (identical(value, "")) default else path.expand(value)
+  normalizePath(path, winslash = "/", mustWork = FALSE)
+}
+
+configured_run_root <- Sys.getenv("COTTRAZM_RUN_DIR", unset = "")
+run_root <- if (nzchar(configured_run_root)) {
+  normalizePath(path.expand(configured_run_root), winslash = "/", mustWork = FALSE)
+} else {
+  NA_character_
+}
+default_input_root <- if (is.na(run_root)) file.path(script_dir, "input") else file.path(run_root, "input")
+default_intermediate_root <- if (is.na(run_root)) file.path(script_dir, "intermediate") else file.path(run_root, "intermediate")
+default_output_root <- if (is.na(run_root)) file.path(script_dir, "output") else file.path(run_root, "output")
+input_root <- resolve_configured_path("COTTRAZM_INPUT_ROOT", default_input_root)
+intermediate_root <- resolve_configured_path("COTTRAZM_INTERMEDIATE_ROOT", default_intermediate_root)
+output_root <- resolve_configured_path("COTTRAZM_OUTPUT_ROOT", default_output_root)
+resources_root <- resolve_configured_path("COTTRAZM_RESOURCES_ROOT", file.path(script_dir, "resources"))
+if (!grepl("^[A-Za-z0-9._-]+$", sample_name)) {
+  stop("COTTRAZM_SAMPLE_NAME contains unsafe path characters: ", sQuote(sample_name), call. = FALSE)
+}
 sample_input_dir <- file.path(input_root, sample_name)
 sample_intermediate_dir <- file.path(intermediate_root, sample_name)
 sample_output_dir <- file.path(output_root, sample_name)
 
 paths <- list(
+  run = run_root,
   input = sample_input_dir,
   spaceranger = file.path(sample_input_dir, "spaceranger_outs"),
   single_cell = file.path(sample_input_dir, "single_cell"),
   intermediate = sample_intermediate_dir,
   output = sample_output_dir,
-  resources = file.path(script_dir, "resources")
+  resources = resources_root
 )
 
-invisible(lapply(c(input_root, intermediate_root, output_root, unlist(paths)), dir.create, recursive = TRUE, showWarnings = FALSE))
+configured_dirs <- unique(c(
+  input_root, intermediate_root, output_root, resources_root,
+  unlist(paths[!vapply(paths, function(x) anyNA(x), logical(1))], use.names = FALSE)
+))
+invisible(lapply(configured_dirs, dir.create, recursive = TRUE, showWarnings = FALSE))
 
 env_chr <- function(name, default = NULL) {
   value <- Sys.getenv(name, unset = "")
@@ -110,6 +135,13 @@ env_chr_vec <- function(name, default = NULL) {
 
 # 主流程参数。修改聚类分辨率、inferCNV 线程数、反卷积细胞类型名、重构区域等，优先改这里。
 params <- list(
+  plot_mode = {
+    value <- tolower(Sys.getenv("COTTRAZM_PLOT_MODE", unset = "full"))
+    if (!value %in% c("none", "summary", "full")) {
+      stop("COTTRAZM_PLOT_MODE must be none, summary, or full; got ", sQuote(value), call. = FALSE)
+    }
+    value
+  },
   cluster_resolution = 1.5,
   infercnv_assay = "Spatial",
   infercnv_threads = 30,
@@ -172,6 +204,15 @@ params <- list(
   pie_scale = 0.4,
   scatterpie_alpha = 0.8,
   pie_border_color = "grey",
+  # Downstream spatial-map export and geometry contract.  The 8 x 7 inch
+  # canvas preserves a fixed full-image map area plus a right-hand legend
+  # strip.  Biological spot size is always read from Space Ranger rather than
+  # encoded as a physical geom_point size.
+  spatial_plot_width = 8,
+  spatial_plot_height = 7,
+  spatial_plot_map_width = 6.45,
+  spatial_plot_legend_width = 1.55,
+  spatial_plot_spot_segments = 24,
   # LSGI 箭头外观参数。
   lsgi_arrow_length_scale = 1.4,
   lsgi_arrow_linewidth = 1.0,

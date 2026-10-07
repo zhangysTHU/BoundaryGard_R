@@ -5,7 +5,9 @@
 script_file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(script_file_arg) > 0) dirname(normalizePath(sub("^--file=", "", script_file_arg[[1]]), winslash = "/", mustWork = FALSE)) else normalizePath(getwd(), winslash = "/", mustWork = FALSE)
 source(file.path(script_dir, "00_config.R"))
-load_required_packages(c("Seurat", "readr", "dplyr", "tibble", "ggplot2", "png", "grid", "viridis", "ComplexHeatmap", "reshape2", "magrittr", "Matrix", "singlet", "msigdbr"))
+source(file.path(script_dir, "R", "boundarygrad_core.R"))
+source(file.path(script_dir, "R", "spatial_plot_core.R"))
+load_required_packages(c("Seurat", "readr", "dplyr", "tibble", "ggplot2", "png", "grid", "jsonlite", "patchwork", "viridis", "ComplexHeatmap", "reshape2", "magrittr", "Matrix", "singlet", "msigdbr"))
 
 parse_cli_options <- function(args) {
   opts <- list()
@@ -142,14 +144,18 @@ get_assay_layer <- function(object, assay, layer) {
 }
 
 cli_opts <- parse_cli_options(commandArgs(trailingOnly = TRUE))
+plot_mode <- bg_validate_plot_mode(get_opt(cli_opts, "plot-mode", default = params$plot_mode %||% "full"))
 
 out_dir <- file.path(paths$output, "11_lsgi_gradient")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
+lsgi_source_override <- Sys.getenv("LSGI_SOURCE_DIR", unset = "")
 lsgi_root_candidates <- c(
+  if (nzchar(lsgi_source_override)) lsgi_source_override else character(),
   file.path(script_dir, "..", "LSGI-master"),
   file.path(script_dir, "..", "Cottrazm-main", "LSGI-master"),
-  file.path(script_dir, "..", "Cottrazm-main-archived", "LSGI-master")
+  file.path(script_dir, "..", "Cottrazm-main-archived", "LSGI-master"),
+  file.path(script_dir, "..", "Cottrazm-main-archived", "LSGI_original_work")
 )
 lsgi_root <- NULL
 for (candidate in lsgi_root_candidates) {
@@ -192,6 +198,7 @@ slice <- names(TumorST@images)[1]
 if (is.na(slice) || !nzchar(slice)) {
   stop("TumorST does not contain a spatial image slot.", call. = FALSE)
 }
+plot_context <- sp_read_context(paths$spaceranger, load_image = !identical(plot_mode, "none"))
 
 image_coordinates <- tryCatch(
   data.frame(TumorST@images[[slice]]@coordinates),
@@ -208,7 +215,7 @@ image_coordinates <- tryCatch(
   }
 )
 
-scale_factor <- TumorST@images[[slice]]@scale.factors$lowres %||% 1
+scale_factor <- plot_context$tissue_lowres_scalef
 spatial_df <- image_coordinates %>%
   tibble::rownames_to_column("cell_ID") %>%
   dplyr::mutate(
@@ -253,7 +260,8 @@ arrow_length_normalization <- as.character(get_opt(
 ))
 reuse_lsgi <- as_bool(get_opt(cli_opts, "reuse-lsgi", default = FALSE))
 write_legacy_cell_component_outputs <- as_bool(get_opt(cli_opts, "write-legacy-cell-component-outputs", default = TRUE))
-plot_common_grid_plots <- as_bool(get_opt(cli_opts, "plot-common-grid-plots", default = TRUE))
+plot_common_grid_plots <- identical(plot_mode, "full") &&
+  as_bool(get_opt(cli_opts, "plot-common-grid-plots", default = TRUE))
 component_methods <- parse_chr_vec(
   get_opt(cli_opts, "component-methods", default = params$lsgi_component_methods %||% "cell_component,nmf,marker_module,pathway,single_gene"),
   default = c("cell_component", "nmf", "marker_module", "pathway", "single_gene")
@@ -363,17 +371,14 @@ boundary_cols <- c(Mal = "#CB181D", Bdy = "#1f78b4", nMal = "#fdb462")
 point_df <- spot_base_df %>%
   dplyr::mutate(Location = factor(Location, levels = names(boundary_cols)))
 
-img_path <- file.path(paths$spaceranger, "spatial", "tissue_lowres_image.png")
-has_image <- file.exists(img_path)
-if (has_image) {
-  img <- png::readPNG(img_path)
-  img_grob <- grid::rasterGrob(
-    img,
-    interpolate = FALSE,
-    width = grid::unit(1, "npc"),
-    height = grid::unit(1, "npc")
+has_image <- plot_context$has_image
+point_spot_polygons <- if (!identical(plot_mode, "none")) {
+  sp_make_spot_polygons(
+    point_df,
+    plot_context,
+    segments = params$spatial_plot_spot_segments %||% 24L
   )
-}
+} else NULL
 
 message("Building common LSGI grid from spatial coordinates.")
 base_grids <- get.grid.coords(spatial_coords = spatial_coords, n.grids.scale = n_grids_scale)
@@ -400,7 +405,7 @@ grid_info_common <- base_grids %>%
 utils::write.csv(grid_info_common, file.path(out_dir, "grid_info.csv"), row.names = FALSE)
 
 grid_palette <- setNames(
-  grDevices::rainbow(length(grid_ids), s = 0.7, v = 0.9, end = if (length(grid_ids) > 1) 0.95 else 0.01),
+  grDevices::hcl.colors(length(grid_ids), palette = "Dynamic"),
   grid_ids
 )
 
@@ -487,33 +492,14 @@ grid_table_df <- grid_info_common %>%
 utils::write.csv(grid_table_df, file.path(out_dir, "grid_spot_summary.csv"), row.names = FALSE)
 
 make_lsgi_result <- function(embeddings) {
-  embeddings <- as.matrix(embeddings)
-  storage.mode(embeddings) <- "numeric"
-  embeddings <- embeddings[, colSums(abs(embeddings), na.rm = TRUE) > 0, drop = FALSE]
-  if (ncol(embeddings) < 1) {
-    stop("No non-zero embedding columns available for LSGI.", call. = FALSE)
-  }
-  embeddings <- embeddings[rownames(spatial_coords), , drop = FALSE]
-
-  ts <- calc.local.linear(
+  bg_fit_lsgi_local_linear(
     grids = base_grids,
-    dist.to.grid = base_dist_to_grid,
-    latent.embeddings = embeddings,
+    dist_to_grid = base_dist_to_grid,
+    embeddings = embeddings,
     spatial_coords = spatial_coords,
-    n.cells.per.meta = n_cells_per_meta
-  )
-  grid.info <- cbind(base_grids, ts$coeff, ts$rsquared.list, ts$assignment.list)
-  colnames(grid.info) <- c("X", "Y", "vx", "vy", "R_squared", "Assignment")
-  grid.info$Assignment <- factor(x = grid.info$Assignment, levels = colnames(embeddings))
-  grid.info <- optimize.arrow(grid.info = grid.info)
-
-  list(
-    grid.info = grid.info,
-    local.linear.info = ts,
-    grids = base_grids,
-    dist.to.grid = base_dist_to_grid,
-    spatial_coords = spatial_coords,
-    embeddings = embeddings
+    n_cells_per_meta = n_cells_per_meta,
+    calc_local_linear = calc.local.linear,
+    optimize_arrow = optimize.arrow
   )
 }
 
@@ -673,10 +659,24 @@ write_distance_heatmap <- function(dist_mat, output_path, label) {
 }
 
 plot_grid_memberships <- function() {
-  partition_plot <- ggplot2::ggplot(partition_df, ggplot2::aes(x = X, y = Y, color = nearest_grid)) +
-    ggplot2::geom_point(size = 1.6, alpha = 0.9) +
+  partition_polygons <- sp_make_spot_polygons(
+    partition_df,
+    plot_context,
+    segments = params$spatial_plot_spot_segments %||% 24L
+  )
+  grid_centers_plot <- grid_info_common %>% dplyr::mutate(Y = -Y)
+
+  make_partition_plot <- function(show_image, title_text) {
+    sp_spatial_canvas(plot_context, show_image = show_image, title = title_text) +
+      sp_spot_layer(
+        partition_polygons,
+        fill_col = "nearest_grid",
+        colour = NA,
+        alpha = 0.9,
+        linewidth = 0
+      ) +
     ggplot2::geom_point(
-      data = grid_info_common,
+      data = grid_centers_plot,
       ggplot2::aes(x = X, y = Y),
       inherit.aes = FALSE,
       shape = 4,
@@ -684,153 +684,97 @@ plot_grid_memberships <- function() {
       stroke = 0.8,
       color = "black"
     ) +
-    ggplot2::scale_color_manual(values = grid_palette, guide = "none") +
-    ggplot2::scale_y_reverse() +
-    ggplot2::coord_fixed() +
-    ggplot2::theme_void() +
-    ggplot2::ggtitle(paste0(sample_name, " grid partition (nearest-grid assignment)"))
-  ggplot2::ggsave(file.path(out_dir, "grid_partition.pdf"), partition_plot, width = 8, height = 7)
-
-  if (has_image) {
-    partition_df_he <- partition_df %>%
-      dplyr::mutate(Y = -Y)
-    grid_info_he <- grid_info_common %>%
-      dplyr::mutate(Y = -Y)
-    partition_overlay_plot <- ggplot2::ggplot() +
-      ggplot2::annotation_custom(
-        grob = img_grob,
-        xmin = 0,
-        xmax = ncol(img),
-        ymin = -nrow(img),
-        ymax = 0
-      ) +
-      ggplot2::geom_point(
-        data = partition_df_he,
-        ggplot2::aes(x = X, y = Y, color = nearest_grid),
-        size = 1.6,
-        alpha = 0.88
-      ) +
-      ggplot2::geom_point(
-        data = grid_info_he,
-        ggplot2::aes(x = X, y = Y),
-        inherit.aes = FALSE,
-        shape = 4,
-        size = 1.8,
-        stroke = 0.8,
-        color = "black"
-      ) +
-      ggplot2::scale_color_manual(values = grid_palette, guide = "none") +
-      ggplot2::coord_fixed(
-        ratio = 1,
-        xlim = c(0, ncol(img)),
-        ylim = c(-nrow(img), 0),
-        expand = FALSE,
-        clip = "on"
-      ) +
-      ggplot2::theme_void() +
-      ggplot2::ggtitle(paste0(sample_name, " grid partition overlay"))
-    ggplot2::ggsave(file.path(out_dir, "grid_partition_overlay.pdf"), partition_overlay_plot, width = 8, height = 7)
-  } else {
-    ggplot2::ggsave(file.path(out_dir, "grid_partition_overlay.pdf"), partition_plot, width = 8, height = 7)
+      ggplot2::scale_fill_manual(values = grid_palette, guide = "none")
   }
+
+  partition_plot <- make_partition_plot(FALSE, paste0(sample_name, " grid partition (nearest-grid assignment)"))
+  partition_overlay_plot <- make_partition_plot(has_image, paste0(sample_name, " grid partition overlay"))
+  sp_save_plot(
+    partition_plot,
+    file.path(out_dir, "grid_partition.pdf"),
+    width = params$spatial_plot_width %||% 8,
+    height = params$spatial_plot_height %||% 7,
+    map_width = params$spatial_plot_map_width %||% 6.45,
+    legend_width = params$spatial_plot_legend_width %||% 1.55
+  )
+  sp_save_plot(
+    partition_overlay_plot,
+    file.path(out_dir, "grid_partition_overlay.pdf"),
+    width = params$spatial_plot_width %||% 8,
+    height = params$spatial_plot_height %||% 7,
+    map_width = params$spatial_plot_map_width %||% 6.45,
+    legend_width = params$spatial_plot_legend_width %||% 1.55
+  )
 
   make_local_plot <- function(grid_id, overlay = FALSE) {
     local_df <- local_membership_df[local_membership_df$grid == grid_id, , drop = FALSE]
     center_df <- grid_info_common[grid_info_common$grid == grid_id, , drop = FALSE]
+    center_df$Y <- -center_df$Y
     grid_color <- grid_palette[[grid_id]]
     title_text <- paste0(sample_name, " ", grid_id, " local spots (n=", nrow(local_df), ")")
+    local_polygons <- sp_make_spot_polygons(
+      local_df,
+      plot_context,
+      segments = params$spatial_plot_spot_segments %||% 24L
+    )
 
-    if (!overlay || !has_image) {
-      return(
-        ggplot2::ggplot() +
-          ggplot2::geom_point(
-            data = point_df,
-            ggplot2::aes(x = X, y = Y),
-            color = "grey82",
-            size = 1.3,
-            alpha = 0.65
-          ) +
-          ggplot2::geom_point(
-            data = local_df,
-            ggplot2::aes(x = X, y = Y),
-            color = grid_color,
-            size = 1.9,
-            alpha = 0.95
-          ) +
-          ggplot2::geom_point(
-            data = center_df,
-            ggplot2::aes(x = X, y = Y),
-            inherit.aes = FALSE,
-            shape = 4,
-            size = 2.3,
-            stroke = 0.9,
-            color = "black"
-          ) +
-          ggplot2::scale_y_reverse() +
-          ggplot2::coord_fixed() +
-          ggplot2::theme_void() +
-          ggplot2::ggtitle(if (overlay && !has_image) paste0(title_text, " overlay") else title_text)
-      )
-    }
-
-    local_df_he <- local_df %>%
-      dplyr::mutate(Y = -Y)
-    center_df_he <- center_df %>%
-      dplyr::mutate(Y = -Y)
-    point_df_he <- point_df %>%
-      dplyr::mutate(Y = -Y)
-
-    ggplot2::ggplot() +
-      ggplot2::annotation_custom(
-        grob = img_grob,
-        xmin = 0,
-        xmax = ncol(img),
-        ymin = -nrow(img),
-        ymax = 0
+    sp_spatial_canvas(
+      plot_context,
+      show_image = isTRUE(overlay) && has_image,
+      title = if (isTRUE(overlay)) paste0(title_text, " overlay") else title_text
+    ) +
+      sp_spot_layer(
+        point_spot_polygons,
+        fill = "grey82",
+        colour = NA,
+        alpha = if (isTRUE(overlay)) 0.55 else 0.65,
+        linewidth = 0
+      ) +
+      sp_spot_layer(
+        local_polygons,
+        fill = grid_color,
+        colour = "grey20",
+        alpha = 0.95,
+        linewidth = 0.1
       ) +
       ggplot2::geom_point(
-        data = point_df_he,
-        ggplot2::aes(x = X, y = Y),
-        color = "grey82",
-        size = 1.2,
-        alpha = 0.55
-      ) +
-      ggplot2::geom_point(
-        data = local_df_he,
-        ggplot2::aes(x = X, y = Y),
-        color = grid_color,
-        size = 1.9,
-        alpha = 0.95
-      ) +
-      ggplot2::geom_point(
-        data = center_df_he,
+        data = center_df,
         ggplot2::aes(x = X, y = Y),
         inherit.aes = FALSE,
         shape = 4,
         size = 2.3,
         stroke = 0.9,
         color = "black"
-      ) +
-      ggplot2::coord_fixed(
-        ratio = 1,
-        xlim = c(0, ncol(img)),
-        ylim = c(-nrow(img), 0),
-        expand = FALSE,
-        clip = "on"
-      ) +
-      ggplot2::theme_void() +
-      ggplot2::ggtitle(paste0(title_text, " overlay"))
+      )
   }
 
-  grDevices::pdf(file.path(out_dir, "grid_local_spots.pdf"), width = 8, height = 7)
+  grDevices::cairo_pdf(
+    file.path(out_dir, "grid_local_spots.pdf"),
+    width = params$spatial_plot_width %||% 8,
+    height = params$spatial_plot_height %||% 7,
+    onefile = TRUE
+  )
   for (grid_id in grid_ids) {
-    print(make_local_plot(grid_id, overlay = FALSE))
+    print(sp_fixed_layout(
+      make_local_plot(grid_id, overlay = FALSE),
+      map_width = params$spatial_plot_map_width %||% 6.45,
+      legend_width = params$spatial_plot_legend_width %||% 1.55
+    ))
   }
   grDevices::dev.off()
 
-  grDevices::pdf(file.path(out_dir, "grid_local_spots_overlay.pdf"), width = 8, height = 7)
+  grDevices::cairo_pdf(
+    file.path(out_dir, "grid_local_spots_overlay.pdf"),
+    width = params$spatial_plot_width %||% 8,
+    height = params$spatial_plot_height %||% 7,
+    onefile = TRUE
+  )
   for (grid_id in grid_ids) {
-    print(make_local_plot(grid_id, overlay = TRUE))
+    print(sp_fixed_layout(
+      make_local_plot(grid_id, overlay = TRUE),
+      map_width = params$spatial_plot_map_width %||% 6.45,
+      legend_width = params$spatial_plot_legend_width %||% 1.55
+    ))
   }
   grDevices::dev.off()
 }
@@ -1358,7 +1302,9 @@ make_nmf_embeddings <- function(method_dir) {
       color = "CV rep",
       caption = paste0("selected k = ", best_k)
     )
-  ggplot2::ggsave(file.path(method_dir, "nmf_cv_rank_plot.pdf"), cv_plot, width = 5.5, height = 4.5)
+  if (!identical(plot_mode, "none")) {
+    ggplot2::ggsave(file.path(method_dir, "nmf_cv_rank_plot.pdf"), cv_plot, width = 5.5, height = 4.5)
+  }
 
   message("Running final singlet NMF with k = ", best_k)
   set.seed(nmf_seed)
@@ -1639,7 +1585,9 @@ write_component_outputs <- function(method_id, method_label, embedding_result) {
   arrow_dir <- file.path(method_dir, "arrow_tables")
   plot_dir <- file.path(method_dir, "plots")
   dir.create(arrow_dir, recursive = TRUE, showWarnings = FALSE)
-  dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
+  if (!identical(plot_mode, "none")) {
+    dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
+  }
 
   lsgi_result_path <- file.path(paths$intermediate, paste0("11_lsgi_", method_id, "_result.rds.gz"))
   legacy_lsgi_result_path <- file.path(paths$intermediate, "11_lsgi_cell_component_result.rds.gz")
@@ -1763,17 +1711,17 @@ write_component_outputs <- function(method_id, method_label, embedding_result) {
   )
   if (!is.null(dist_mat) && nrow(dist_mat) > 0) {
     utils::write.csv(dist_mat, file.path(method_dir, "gradient_distance.csv"), row.names = FALSE)
-    write_distance_heatmap(dist_mat, file.path(method_dir, "gradient_distance_heatmap.pdf"), method_id)
+    if (!identical(plot_mode, "none")) {
+      write_distance_heatmap(dist_mat, file.path(method_dir, "gradient_distance_heatmap.pdf"), method_id)
+    }
   }
 
-  arrow_plot_df <- arrow_df
-  if (nrow(arrow_plot_df) > 0) {
-    arrow_plot_df <- arrow_plot_df %>%
-      dplyr::mutate(
-        X_end = X + vx.u * arrow_length_scale,
-        Y_end = Y + vy.u * arrow_length_scale
-      )
-  }
+  if (!identical(plot_mode, "none")) {
+  arrow_plot_df <- sp_prepare_arrows(
+    arrow_df,
+    arrow_length_scale = arrow_length_scale,
+    flip_y = TRUE
+  )
 
   add_gradient_arrows <- function(p, arrow_data = arrow_plot_df) {
     if (nrow(arrow_data) == 0) {
@@ -1810,74 +1758,58 @@ write_component_outputs <- function(method_id, method_label, embedding_result) {
     out + ggplot2::labs(color = method_label)
   }
 
-  boundary_base <- ggplot2::ggplot(point_df, ggplot2::aes(x = X, y = Y, fill = Location)) +
-    ggplot2::geom_point(shape = 21, size = 1.8, stroke = 0.1, color = "grey25", alpha = 0.9) +
-    ggplot2::scale_fill_manual(values = boundary_cols, drop = FALSE) +
-    ggplot2::scale_y_reverse() +
-    ggplot2::coord_fixed() +
-    ggplot2::theme_void() +
-    ggplot2::theme(legend.position = "right") +
-    ggplot2::ggtitle(paste0(sample_name, " boundary with LSGI ", method_label, " gradients"))
+  save_spatial_method_plot <- function(plot, filename) {
+    sp_save_plot(
+      plot,
+      filename,
+      width = params$spatial_plot_width %||% 8,
+      height = params$spatial_plot_height %||% 7,
+      map_width = params$spatial_plot_map_width %||% 6.45,
+      legend_width = params$spatial_plot_legend_width %||% 1.55
+    )
+  }
+
+  boundary_base <- sp_boundary_base(
+    point_spot_polygons,
+    plot_context,
+    boundary_cols,
+    title = paste0(sample_name, " boundary with LSGI ", method_label, " gradients"),
+    show_image = FALSE
+  )
 
   boundary_gradient <- add_gradient_arrows(boundary_base)
   boundary_pdf <- file.path(plot_dir, paste0(sample_name, "_BoundaryDefine_LSGIGradient.pdf"))
-  ggplot2::ggsave(boundary_pdf, boundary_gradient, width = 8, height = 7)
+  save_spatial_method_plot(boundary_gradient, boundary_pdf)
 
   he_pdf <- NULL
   if (has_image) {
-    point_df_he <- point_df %>%
-      dplyr::mutate(Y = -Y)
-    arrow_plot_df_he <- arrow_plot_df
-    if (nrow(arrow_plot_df_he) > 0) {
-      arrow_plot_df_he <- arrow_plot_df_he %>%
-        dplyr::mutate(
-          Y = -Y,
-          Y_end = -Y_end
-        )
-    }
-    he_base <- ggplot2::ggplot() +
-      ggplot2::annotation_custom(
-        grob = img_grob,
-        xmin = 0,
-        xmax = ncol(img),
-        ymin = -nrow(img),
-        ymax = 0
-      ) +
-      ggplot2::geom_point(
-        data = point_df_he,
-        ggplot2::aes(x = X, y = Y, fill = Location),
-        shape = 21,
-        size = 1.8,
-        stroke = 0.1,
-        color = "grey20",
-        alpha = 0.82
-      ) +
-      ggplot2::scale_fill_manual(values = boundary_cols, drop = FALSE) +
-      ggplot2::coord_fixed(
-        ratio = 1,
-        xlim = c(0, ncol(img)),
-        ylim = c(-nrow(img), 0),
-        expand = FALSE,
-        clip = "on"
-      ) +
-      ggplot2::theme_void() +
-      ggplot2::theme(legend.position = "right") +
-      ggplot2::ggtitle(paste0(sample_name, " HE-boundary with LSGI ", method_label, " gradients"))
+    he_base <- sp_boundary_base(
+      point_spot_polygons,
+      plot_context,
+      boundary_cols,
+      title = paste0(sample_name, " HE-boundary with LSGI ", method_label, " gradients"),
+      show_image = TRUE
+    )
 
-    he_gradient <- add_gradient_arrows(he_base, arrow_plot_df_he)
+    he_gradient <- add_gradient_arrows(he_base, arrow_plot_df)
     he_pdf <- file.path(plot_dir, paste0(sample_name, "_BoundaryDefine_HE_LSGIGradient.pdf"))
-    ggplot2::ggsave(he_pdf, he_gradient, width = 8, height = 7)
+    save_spatial_method_plot(he_gradient, he_pdf)
   }
 
-  plain_gradient_base <- ggplot2::ggplot(point_df, ggplot2::aes(x = X, y = Y)) +
-    ggplot2::geom_point(size = 1.5, shape = 20, stroke = 0, color = "lightgrey") +
-    ggplot2::scale_y_reverse() +
-    ggplot2::coord_fixed() +
-    ggplot2::theme_void() +
-    ggplot2::theme(legend.position = "right") +
-    ggplot2::ggtitle(paste0("LSGI ", method_label, " gradients"))
+  plain_gradient_base <- sp_spatial_canvas(
+    plot_context,
+    show_image = FALSE,
+    title = paste0("LSGI ", method_label, " gradients")
+  ) +
+    sp_spot_layer(
+      point_spot_polygons,
+      fill = "lightgrey",
+      colour = NA,
+      alpha = 1,
+      linewidth = 0
+    )
   plain_pdf <- file.path(plot_dir, "gradients_plain_lsgi.pdf")
-  ggplot2::ggsave(plain_pdf, add_gradient_arrows(plain_gradient_base), width = 8, height = 7)
+  save_spatial_method_plot(add_gradient_arrows(plain_gradient_base), plain_pdf)
 
   legacy_boundary_pdf <- file.path(method_dir, paste0(sample_name, "_BoundaryDefine_LSGIGradient.pdf"))
   legacy_he_pdf <- file.path(method_dir, paste0(sample_name, "_BoundaryDefine_HE_LSGIGradient.pdf"))
@@ -1890,7 +1822,7 @@ write_component_outputs <- function(method_id, method_label, embedding_result) {
 
   component_levels <- colnames(lsgi_res$embeddings)
   component_files <- sanitize_filename(component_levels, prefix = "component")
-  for (component_idx in seq_along(component_levels)) {
+  if (identical(plot_mode, "full")) for (component_idx in seq_along(component_levels)) {
     component_id <- component_levels[[component_idx]]
     component_file <- component_files[[component_idx]]
     component_arrow_df <- arrow_plot_df[as.character(arrow_plot_df$fctr) == component_id, , drop = FALSE]
@@ -1899,33 +1831,22 @@ write_component_outputs <- function(method_id, method_label, embedding_result) {
       boundary_base + ggplot2::ggtitle(paste0(sample_name, " boundary with LSGI ", method_label, " gradient: ", component_id)),
       component_arrow_df
     )
-    ggplot2::ggsave(
-      file.path(plot_dir, paste0(sample_name, "_", method_id, "_", component_file, "_BoundaryDefine_LSGIGradient.pdf")),
+    save_spatial_method_plot(
       component_boundary,
-      width = 8,
-      height = 7
+      file.path(plot_dir, paste0(sample_name, "_", method_id, "_", component_file, "_BoundaryDefine_LSGIGradient.pdf"))
     )
 
     if (has_image) {
-      component_arrow_df_he <- component_arrow_df
-      if (nrow(component_arrow_df_he) > 0) {
-        component_arrow_df_he <- component_arrow_df_he %>%
-          dplyr::mutate(
-            Y = -Y,
-            Y_end = -Y_end
-          )
-      }
       component_he <- add_gradient_arrows(
         he_base + ggplot2::ggtitle(paste0(sample_name, " HE-boundary with LSGI ", method_label, " gradient: ", component_id)),
-        component_arrow_df_he
+        component_arrow_df
       )
-      ggplot2::ggsave(
-        file.path(plot_dir, paste0(sample_name, "_", method_id, "_", component_file, "_BoundaryDefine_HE_LSGIGradient.pdf")),
+      save_spatial_method_plot(
         component_he,
-        width = 8,
-        height = 7
+        file.path(plot_dir, paste0(sample_name, "_", method_id, "_", component_file, "_BoundaryDefine_HE_LSGIGradient.pdf"))
       )
     }
+  }
   }
 
   if (identical(method_id, "cell_component") && write_legacy_cell_component_outputs) {
@@ -1935,13 +1856,17 @@ write_component_outputs <- function(method_id, method_label, embedding_result) {
     utils::write.csv(arrow_df, file.path(out_dir, "cell_component_gradient_arrows.csv"), row.names = FALSE)
     if (!is.null(dist_mat) && nrow(dist_mat) > 0) {
       utils::write.csv(dist_mat, file.path(out_dir, "cell_component_gradient_distance.csv"), row.names = FALSE)
-      write_distance_heatmap(dist_mat, file.path(out_dir, "cell_component_gradient_distance_heatmap.pdf"), "cell_component legacy")
+      if (!identical(plot_mode, "none")) {
+        write_distance_heatmap(dist_mat, file.path(out_dir, "cell_component_gradient_distance_heatmap.pdf"), "cell_component legacy")
+      }
     }
-    file.copy(boundary_pdf, file.path(out_dir, paste0(sample_name, "_BoundaryDefine_LSGIGradient.pdf")), overwrite = TRUE)
-    if (!is.null(he_pdf)) {
-      file.copy(he_pdf, file.path(out_dir, paste0(sample_name, "_BoundaryDefine_HE_LSGIGradient.pdf")), overwrite = TRUE)
+    if (!identical(plot_mode, "none")) {
+      file.copy(boundary_pdf, file.path(out_dir, paste0(sample_name, "_BoundaryDefine_LSGIGradient.pdf")), overwrite = TRUE)
+      if (!is.null(he_pdf)) {
+        file.copy(he_pdf, file.path(out_dir, paste0(sample_name, "_BoundaryDefine_HE_LSGIGradient.pdf")), overwrite = TRUE)
+      }
+      file.copy(plain_pdf, file.path(out_dir, "cell_component_gradients_plain_lsgi.pdf"), overwrite = TRUE)
     }
-    file.copy(plain_pdf, file.path(out_dir, "cell_component_gradients_plain_lsgi.pdf"), overwrite = TRUE)
   }
 
   sink(file.path(method_dir, "method_summary.txt"))
@@ -2015,7 +1940,7 @@ write_component_outputs <- function(method_id, method_label, embedding_result) {
 if (plot_common_grid_plots) {
   plot_grid_memberships()
 } else {
-  message("Skipping common grid membership PDF plots because --plot-common-grid-plots=false.")
+  message("Skipping common grid membership PDF plots (plot_mode=", plot_mode, ").")
 }
 
 method_summaries <- list()
@@ -2069,7 +1994,9 @@ cat("Grid clustering backend:", grid_clustering_backend, "\n")
 cat("n.grids.scale:", n_grids_scale, "\n")
 cat("n.cells.per.meta:", n_cells_per_meta, "\n")
 cat("Generated grids:", nrow(grid_info_common), "\n")
-cat("H&E overlay available:", has_image, "\n\n")
+cat("H&E overlay available:", has_image, "\n")
+cat("Low-resolution spot diameter px:", plot_context$spot_diameter_lowres, "\n")
+cat("Spatial canvas inches:", params$spatial_plot_width %||% 8, "x", params$spatial_plot_height %||% 7, "\n\n")
 cat("Common grid PDF plots:", plot_common_grid_plots, "\n\n")
 cat("Arrow filters and styling:\n")
 cat("R-squared threshold:", r_squared_thresh, "\n")

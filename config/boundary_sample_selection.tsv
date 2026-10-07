@@ -1,0 +1,4 @@
+sample_name	boundary_run_id	boundary_malignant_cnv_labels	boundary_mal_cluster_fraction	boundary_umap_mal_ratio	boundary_expand_mal_radius	boundary_max_rounds
+BRCA1	run2	3,6,8	0.2	0.5	1	6
+BRCA2	run1	2,4,7	0.3	0.5	1	6
+CRC1	legacy	2,4	0.3	0.5	1	6

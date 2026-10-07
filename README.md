@@ -10,6 +10,9 @@
 - `04_lsgi_gradient.R`：在组织空间上构建统一 grid，并对 `cell_component`、`nmf`、`marker_module`、`pathway`、`single_gene` 等 embedding/component 来源运行 LSGI 局部线性梯度分析。输出目录保持为 `output/<样本名>/11_lsgi_gradient/`。
 - `05_boundary_related_lsgi_arrows.R`：将全局 LSGI arrows 与边界 spot 对齐，按 partition/local/consensus/union 策略筛选边界相关梯度箭头，并输出 arrow、grid 和 Bdy spot-arrow assignment 三层结果。输出目录保持为 `output/<样本名>/12_boundary_related_lsgi_arrows/`。
 - `06_tumor_arrow_guided_boundary_profile.R`：使用 `05` 中筛选出的肿瘤上皮 LSGI arrow 作为局部方向轴，沿边界附近窄带统计 redox 或自定义 embedding 的跨边界 profile，并默认加入 `cell_component::Cancer.Epithelial` 作为阳性对照。输出目录为 `output/<样本名>/13_tumor_arrow_guided_boundary_profile/`。
+
+样本采用的正式边界参数统一记录在 `config/boundary_sample_selection.tsv`。`run_all_entry/run_all.sh` 和 `run_all_entry/run_all.ps1` 启动时先按 `sample_name` 查表：命中时使用表中参数，并在边界步骤完成后把对应 run 激活到下游读取的固定路径；未命中时清除边界参数环境覆盖，使用 `00_config.R` 的默认值。一个样本在表中出现多次或选定 run 的文件缺失时，runner 会直接停止。
+
 ## 流水线功能与生物学应用
 
 这套 R 工作流面向 10x Visium / Space Ranger 空间转录组切片，最终将肿瘤组织解析为可计算的边界生态位。流程以原始空间表达矩阵、H&E 图像、Space Ranger 坐标和单细胞参考为输入，依次建立形态校正的空间对象、CNV 支持的肿瘤边界标签、spot 级细胞组成矩阵、多来源空间梯度方向场，边界相关空间梯度富集和分析，以及以肿瘤上皮梯度为局部坐标轴的跨边界 profile。最终输出的核心对象是每个 spot 层面的 `Mal / Bdy / nMal`分类、grid 层面的 component-specific gradient arrow，以及依赖前两者的每个边界 patch 上功能特征沿肿瘤方向轴的分布曲线。
@@ -20,6 +23,19 @@
 ### 0. 流程输入、配置和基础空间对象
 
 `00_config.R` 集中定义样本名、`input/intermediate/output/resources` 路径、inferCNV 参数、边界扩展阈值、反卷积细胞类型名称、LSGI embedding 来源、箭头可视化编码，以及第 6 模块使用的 tumor-arrow profile 参数。所有下游模块均从这里读取统一配置，因此同一套脚本可以通过环境变量或命令行参数切换样本、边界策略、feature panel 和 profile QC 标准。
+
+为支持可审计的隔离运行，可设置 `COTTRAZM_RUN_DIR`，使默认
+`input/`、`intermediate/` 和 `output/` 全部位于该运行根目录；也可分别使用
+`COTTRAZM_INPUT_ROOT`、`COTTRAZM_INTERMEDIATE_ROOT`、
+`COTTRAZM_OUTPUT_ROOT` 和 `COTTRAZM_RESOURCES_ROOT` 覆盖。样本名只允许
+字母、数字、点、下划线和连字符。脚本 05/06 在清理旧输出前会验证目标目录是
+配置根目录下的样本子目录，避免删除到共享或 canonical 根目录。
+
+脚本 04–06 支持 `COTTRAZM_PLOT_MODE=none|summary|full`；`none` 仍写出全部
+结构化数值表，但不生成 PDF，适合 benchmark/CI。04 也接受
+`LSGI_SOURCE_DIR` 指向含 `R/LSGI.R` 的固定源码目录。可复用的无绘图核心函数位于
+`R/boundarygrad_core.R`，接口版本记录在 `boundarygrad_core_api_version`；04–06 与
+benchmark adapter 共同调用这些函数。
 
 `01_spatial_preprocess_cluster.R` 将 Space Ranger 表达矩阵、spot 坐标和 H&E 图像读入 Seurat，生成 `Spatial` assay 与 image slot，并输出空间 QC 图和表。随后脚本通过 stLearn/SME 生成融合局部组织形态信息的 `Morph` assay，在该形态校正表达空间中执行标准 Seurat 降维、邻居图、UMAP 和聚类。`NormalScore` 由免疫/B 细胞 marker 的平均表达近似估计，用于在下一步选择 CNV reference cluster。该模块的意义在于，后续边界定义不完全依赖原始表达聚类，而是同时继承了 H&E 形态和转录相似性的信息。
 
@@ -271,6 +287,13 @@ intermediate/<样本名>/04_TumorST_cnv_scored.rds.gz
 intermediate/<样本名>/05_TumorST_boundary_defined.rds.gz
 ```
 
+`R/cottrazm_boundary_core.R` 导出不读写文件、不绘图的
+`ct_define_boundary()`（API `1.0.0`）以及 inferCNV HMM 产物标准化函数。
+`02_boundary_definition.R` 与 benchmark adapter 调用同一个核心；核心只接收
+spot CNV calls、方法侧 cluster/embedding/normal score 和空间邻接，不接收解析
+boundary、clone、purity 或 mixing truth。对稠密病灶不再因“零恶性邻居”集合为空
+而中止，而是确定性退化到最小恶性邻接度的前沿，旧数据存在零度前沿时数值不变。
+
 反卷积与 LSGI 主线会生成：
 
 ```text
@@ -290,6 +313,20 @@ output/<样本名>/13_tumor_arrow_guided_boundary_profile/feature_boundary_tests
 ```
 
 `13_tumor_arrow_guided_boundary_profile` 的主分析只使用通过 QC 的 `cross_boundary` patches：默认要求窄带内至少有 3 个 profile spots，且至少纳入 1 个 `Location == "nMal"` spot。`one_sided` 表示已找到 0 点 Bdy spot，但该 arrow 窄带内保留的 profile spots 只落在 0 点一侧，因此只进入 secondary summary；其他被筛掉的 patch 会保留在 patch/spot/rectangle 表中，并通过 `profile_exclusion_reason` 记录原因。
+
+## 下游空间图统一规范
+
+02 的最终 BoundaryDefine 图以及 04--06 的 spot/arrow 空间图共用
+`R/spatial_plot_core.R`：画布统一为 8 x 7 inch，组织图使用完整 low-resolution
+H&E 坐标范围。spot 直径为
+`spot_diameter_fullres * tissue_lowres_scalef`，以图像数据坐标中的圆绘制，
+不再使用会随版式变化的固定 `geom_point(size=...)`。箭头终点统一为
+`X/Y + vx.u/vy.u * lsgi_arrow_length_scale`，然后再同步转换 Y 坐标。
+现有 H&E/非 H&E 输出文件组合保持不变，两者只共享坐标、spot 和版式规则。
+
+`05_boundary/<run_id>/*_out_*.pdf` 仅作为历史参数试跑诊断图保留，runner
+不再将它们复制为 `05_boundary/` 顶层正式输出。旧的
+`10_plots/DeconPieplot.pdf` 已标记为 deprecated，当前主流程不会再生成它。
 
 ## 常见检查点
 

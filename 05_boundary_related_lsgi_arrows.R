@@ -14,7 +14,9 @@
 script_file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(script_file_arg) > 0) dirname(normalizePath(sub("^--file=", "", script_file_arg[[1]]), winslash = "/", mustWork = FALSE)) else normalizePath(getwd(), winslash = "/", mustWork = FALSE)
 source(file.path(script_dir, "00_config.R"))
-load_required_packages(c("readr", "dplyr", "tibble", "ggplot2", "png", "grid"))
+source(file.path(script_dir, "R", "boundarygrad_core.R"))
+source(file.path(script_dir, "R", "spatial_plot_core.R"))
+load_required_packages(c("readr", "dplyr", "tibble", "ggplot2", "png", "grid", "jsonlite", "patchwork"))
 
 parse_cli_options <- function(args) {
   opts <- list()
@@ -73,11 +75,14 @@ coalesce_chr <- function(x, fallback = "") {
 }
 
 cli_opts <- parse_cli_options(commandArgs(trailingOnly = TRUE))
+plot_mode <- bg_validate_plot_mode(get_opt(cli_opts, "plot-mode", default = params$plot_mode %||% "full"))
 
 lsgi_dir <- file.path(paths$output, "11_lsgi_gradient")
 out_dir <- file.path(paths$output, "12_boundary_related_lsgi_arrows")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 legacy_root_output_dirs <- file.path(out_dir, c("arrow_tables", "grid_tables", "spot_tables", "plots", "plots_by_strategy"))
+invisible(lapply(legacy_root_output_dirs, bg_assert_safe_child, root = paths$output,
+                 label = "legacy output cleanup target"))
 unlink(legacy_root_output_dirs, recursive = TRUE, force = TRUE)
 
 component_methods <- parse_chr_vec(
@@ -249,37 +254,21 @@ if (!identical(strategy_filter, "all")) {
   strategies <- strategies[strategies$strategy_id %in% strategy_filter, , drop = FALSE]
 }
 
-passes_partition <- function(metrics, min_n, min_frac) {
-  metrics$partition_n_Bdy >= min_n & metrics$partition_frac_Bdy >= min_frac
-}
-
-passes_local <- function(metrics, min_n, min_frac) {
-  metrics$local_n_Bdy >= min_n & metrics$local_frac_Bdy >= min_frac
-}
-
-selected_grid_flags <- function(metrics, strategy) {
-  type <- strategy$strategy_type[[1]]
-  if (identical(type, "partition")) {
-    return(passes_partition(metrics, strategy$min_partition_n_Bdy[[1]], strategy$min_partition_frac_Bdy[[1]]))
-  }
-  if (identical(type, "local")) {
-    return(passes_local(metrics, strategy$min_local_n_Bdy[[1]], strategy$min_local_frac_Bdy[[1]]))
-  }
-  partition_ok <- passes_partition(metrics, strategy$min_partition_n_Bdy[[1]], strategy$min_partition_frac_Bdy[[1]])
-  local_ok <- passes_local(metrics, strategy$min_local_n_Bdy[[1]], strategy$min_local_frac_Bdy[[1]])
-  if (identical(type, "intersection")) return(partition_ok & local_ok)
-  if (identical(type, "union")) return(partition_ok | local_ok)
-  stop("Unsupported strategy_type: ", type, call. = FALSE)
-}
+passes_partition <- bg_passes_partition
+passes_local <- bg_passes_local
+selected_grid_flags <- bg_selected_grid_flags
 
 make_plot_arrow_df <- function(df, component_levels) {
   if (!"arrow_head_angle_mapped" %in% colnames(df)) {
     df$arrow_head_angle_mapped <- arrow_head_angle
   }
-  df %>%
+  out <- sp_prepare_arrows(
+    df,
+    arrow_length_scale = arrow_length_scale,
+    flip_y = TRUE
+  )
+  out %>%
     dplyr::mutate(
-      X_end = X + vx.u * arrow_length_scale,
-      Y_end = Y + vy.u * arrow_length_scale,
       arrow_head_angle_mapped = ifelse(is.finite(arrow_head_angle_mapped), arrow_head_angle_mapped, arrow_head_angle),
       component = factor(component, levels = component_levels)
     )
@@ -341,15 +330,24 @@ point_df <- partition_df %>%
   dplyr::distinct(cell_ID, .keep_all = TRUE) %>%
   dplyr::mutate(Location = factor(Location, levels = names(boundary_cols)))
 
-img_path <- file.path(paths$spaceranger, "spatial", "tissue_lowres_image.png")
-has_image <- file.exists(img_path)
-if (has_image) {
-  img <- png::readPNG(img_path)
-  img_grob <- grid::rasterGrob(
-    img,
-    interpolate = FALSE,
-    width = grid::unit(1, "npc"),
-    height = grid::unit(1, "npc")
+plot_context <- sp_read_context(paths$spaceranger, load_image = !identical(plot_mode, "none"))
+has_image <- plot_context$has_image
+point_spot_polygons <- if (!identical(plot_mode, "none")) {
+  sp_make_spot_polygons(
+    point_df,
+    plot_context,
+    segments = params$spatial_plot_spot_segments %||% 24L
+  )
+} else NULL
+
+save_boundary_arrow_plot <- function(plot, filename) {
+  sp_save_plot(
+    plot,
+    filename,
+    width = params$spatial_plot_width %||% 8,
+    height = params$spatial_plot_height %||% 7,
+    map_width = params$spatial_plot_map_width %||% 6.45,
+    legend_width = params$spatial_plot_legend_width %||% 1.55
   )
 }
 
@@ -360,7 +358,9 @@ process_method <- function(method_id) {
   grid_out_dir <- file.path(module_out_dir, "grid_tables")
   spot_out_dir <- file.path(module_out_dir, "spot_tables")
   plot_out_dir <- file.path(module_out_dir, "plots")
-  invisible(lapply(c(module_out_dir, arrow_out_dir, grid_out_dir, spot_out_dir, plot_out_dir), dir.create, recursive = TRUE, showWarnings = FALSE))
+  output_dirs <- c(module_out_dir, arrow_out_dir, grid_out_dir, spot_out_dir)
+  if (!identical(plot_mode, "none")) output_dirs <- c(output_dirs, plot_out_dir)
+  invisible(lapply(output_dirs, dir.create, recursive = TRUE, showWarnings = FALSE))
 
   arrows_all <- read_method_arrows(method_id)
   candidate_arrows <- arrows_all
@@ -373,7 +373,9 @@ process_method <- function(method_id) {
     grDevices::hcl.colors(length(component_levels), palette = "Dark 3"),
     component_levels
   )
-  background_arrows <- make_plot_arrow_df(candidate_arrows, component_levels)
+  background_arrows <- if (!identical(plot_mode, "none")) {
+    make_plot_arrow_df(candidate_arrows, component_levels)
+  } else NULL
   readr::write_csv(grid_metrics, file.path(module_out_dir, "grid_boundary_metrics.csv"))
 
   strategy_summary_rows <- vector("list", nrow(strategies))
@@ -427,7 +429,12 @@ process_method <- function(method_id) {
       dplyr::rename(source_grid = grid)
 
     spot_arrow_assignments <- spot_arrow_base %>%
-      dplyr::inner_join(spot_arrow_join, by = "source_grid", suffix = c("_spot", "_arrow")) %>%
+      dplyr::inner_join(
+        spot_arrow_join,
+        by = "source_grid",
+        suffix = c("_spot", "_arrow"),
+        relationship = "many-to-many"
+      ) %>%
       dplyr::mutate(strategy_id = strategy_id, component_method = method_id) %>%
       dplyr::select(component_method, strategy_id, dplyr::everything())
     if (!is.null(spot_decon_07)) {
@@ -436,18 +443,18 @@ process_method <- function(method_id) {
     }
     readr::write_csv(spot_arrow_assignments, file.path(spot_out_dir, paste0(strategy_id, "_bdy_spot_arrow_assignments.csv")))
 
+    if (!identical(plot_mode, "none")) {
     selected_plot_arrows <- make_plot_arrow_df(selected_arrows, component_levels)
     background_plot_arrows <- background_arrows %>%
       dplyr::filter(!grid %in% selected_grids$grid)
 
-    boundary_base <- ggplot2::ggplot(point_df, ggplot2::aes(x = X, y = Y, fill = Location)) +
-      ggplot2::geom_point(shape = 21, size = 1.8, stroke = 0.1, color = "grey25", alpha = 0.9, na.rm = TRUE) +
-      ggplot2::scale_fill_manual(values = boundary_cols, drop = FALSE) +
-      ggplot2::scale_y_reverse() +
-      ggplot2::coord_fixed() +
-      ggplot2::theme_void() +
-      ggplot2::theme(legend.position = "right") +
-      ggplot2::ggtitle(paste0(sample_name, " ", method_id, " boundary-related LSGI arrows: ", strategy_id))
+    boundary_base <- sp_boundary_base(
+      point_spot_polygons,
+      plot_context,
+      boundary_cols,
+      title = paste0(sample_name, " ", method_id, " boundary-related LSGI arrows: ", strategy_id),
+      show_image = FALSE
+    )
 
     boundary_plot <- add_selected_arrows(
       boundary_base,
@@ -456,68 +463,35 @@ process_method <- function(method_id) {
       component_palette,
       method_id
     )
-    ggplot2::ggsave(
-      file.path(plot_out_dir, paste0(sample_name, "_", method_id, "_", strategy_id, "_BoundaryRelated_LSGIGradient.pdf")),
+    save_boundary_arrow_plot(
       boundary_plot,
-      width = 8,
-      height = 7
+      file.path(plot_out_dir, paste0(sample_name, "_", method_id, "_", strategy_id, "_BoundaryRelated_LSGIGradient.pdf"))
     )
 
     if (has_image) {
-      point_df_he <- point_df %>%
-        dplyr::mutate(Y = -Y)
-      selected_plot_arrows_he <- selected_plot_arrows %>%
-        dplyr::mutate(Y = -Y, Y_end = -Y_end)
-      background_plot_arrows_he <- background_plot_arrows %>%
-        dplyr::mutate(Y = -Y, Y_end = -Y_end)
-
-      he_base <- ggplot2::ggplot() +
-        ggplot2::annotation_custom(
-          grob = img_grob,
-          xmin = 0,
-          xmax = ncol(img),
-          ymin = -nrow(img),
-          ymax = 0
-        ) +
-        ggplot2::geom_point(
-          data = point_df_he,
-          ggplot2::aes(x = X, y = Y, fill = Location),
-          shape = 21,
-          size = 1.8,
-          stroke = 0.1,
-          color = "grey20",
-          alpha = 0.82,
-          na.rm = TRUE
-        ) +
-        ggplot2::scale_fill_manual(values = boundary_cols, drop = FALSE) +
-        ggplot2::coord_fixed(
-          ratio = 1,
-          xlim = c(0, ncol(img)),
-          ylim = c(-nrow(img), 0),
-          expand = FALSE,
-          clip = "on"
-        ) +
-        ggplot2::theme_void() +
-        ggplot2::theme(legend.position = "right") +
-        ggplot2::ggtitle(paste0(sample_name, " HE ", method_id, " boundary-related LSGI arrows: ", strategy_id))
+      he_base <- sp_boundary_base(
+        point_spot_polygons,
+        plot_context,
+        boundary_cols,
+        title = paste0(sample_name, " HE ", method_id, " boundary-related LSGI arrows: ", strategy_id),
+        show_image = TRUE
+      )
 
       he_plot <- add_selected_arrows(
         he_base,
-        selected_plot_arrows_he,
-        background_plot_arrows_he,
+        selected_plot_arrows,
+        background_plot_arrows,
         component_palette,
         method_id
       )
-      ggplot2::ggsave(
-        file.path(plot_out_dir, paste0(sample_name, "_", method_id, "_", strategy_id, "_BoundaryRelated_HE_LSGIGradient.pdf")),
+      save_boundary_arrow_plot(
         he_plot,
-        width = 8,
-        height = 7
+        file.path(plot_out_dir, paste0(sample_name, "_", method_id, "_", strategy_id, "_BoundaryRelated_HE_LSGIGradient.pdf"))
       )
     }
 
     component_files <- sanitize_filename(component_levels, prefix = "component")
-    for (component_idx in seq_along(component_levels)) {
+    if (identical(plot_mode, "full")) for (component_idx in seq_along(component_levels)) {
       component_id <- component_levels[[component_idx]]
       component_file <- component_files[[component_idx]]
       selected_component_arrows <- selected_plot_arrows %>%
@@ -533,33 +507,26 @@ process_method <- function(method_id) {
         method_id,
         color_drop = TRUE
       )
-      ggplot2::ggsave(
-        file.path(plot_out_dir, paste0(sample_name, "_", method_id, "_", strategy_id, "_", component_file, "_BoundaryRelated_LSGIGradient.pdf")),
+      save_boundary_arrow_plot(
         component_boundary_plot,
-        width = 8,
-        height = 7
+        file.path(plot_out_dir, paste0(sample_name, "_", method_id, "_", strategy_id, "_", component_file, "_BoundaryRelated_LSGIGradient.pdf"))
       )
 
       if (has_image) {
-        selected_component_arrows_he <- selected_component_arrows %>%
-          dplyr::mutate(Y = -Y, Y_end = -Y_end)
-        background_component_arrows_he <- background_component_arrows %>%
-          dplyr::mutate(Y = -Y, Y_end = -Y_end)
         component_he_plot <- add_selected_arrows(
           he_base + ggplot2::ggtitle(paste0(sample_name, " HE ", method_id, " boundary-related LSGI arrow: ", strategy_id, " / ", component_id)),
-          selected_component_arrows_he,
-          background_component_arrows_he,
+          selected_component_arrows,
+          background_component_arrows,
           component_palette[component_id],
           method_id,
           color_drop = TRUE
         )
-        ggplot2::ggsave(
-          file.path(plot_out_dir, paste0(sample_name, "_", method_id, "_", strategy_id, "_", component_file, "_BoundaryRelated_HE_LSGIGradient.pdf")),
+        save_boundary_arrow_plot(
           component_he_plot,
-          width = 8,
-          height = 7
+          file.path(plot_out_dir, paste0(sample_name, "_", method_id, "_", strategy_id, "_", component_file, "_BoundaryRelated_HE_LSGIGradient.pdf"))
         )
       }
+    }
     }
 
     component_counts <- sort(table(selected_arrows$component), decreasing = TRUE)
@@ -596,7 +563,10 @@ process_method <- function(method_id) {
   cat("Local membership rows:", nrow(local_df), "\n")
   cat("07 spot matrix available:", !is.null(spot_matrix_07), "\n")
   cat("07 spot matrix path:", if (file.exists(spot_matrix_path)) spot_matrix_path else "not found", "\n")
-  cat("H&E overlay available:", has_image, "\n\n")
+  cat("H&E overlay available:", has_image, "\n")
+  cat("Low-resolution spot diameter px:", plot_context$spot_diameter_lowres, "\n")
+  cat("Arrow length scale:", arrow_length_scale, "\n")
+  cat("Spatial canvas inches:", params$spatial_plot_width %||% 8, "x", params$spatial_plot_height %||% 7, "\n\n")
   cat("Strategies:\n")
   print(strategy_summary)
   cat("\nOutputs written to:\n")
@@ -619,7 +589,10 @@ cat("Partition spots:", nrow(partition_df), "\n")
 cat("Local membership rows:", nrow(local_df), "\n")
 cat("07 spot matrix available:", !is.null(spot_matrix_07), "\n")
 cat("07 spot matrix path:", if (file.exists(spot_matrix_path)) spot_matrix_path else "not found", "\n")
-cat("H&E overlay available:", has_image, "\n\n")
+cat("H&E overlay available:", has_image, "\n")
+cat("Low-resolution spot diameter px:", plot_context$spot_diameter_lowres, "\n")
+cat("Arrow length scale:", arrow_length_scale, "\n")
+cat("Spatial canvas inches:", params$spatial_plot_width %||% 8, "x", params$spatial_plot_height %||% 7, "\n\n")
 cat("Strategy summaries:\n")
 print(strategy_summary_all)
 cat("\nModule output directories:\n")

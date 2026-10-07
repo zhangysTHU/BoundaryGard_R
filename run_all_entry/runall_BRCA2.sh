@@ -4,7 +4,7 @@ set -euo pipefail
 # BRCA2 的当前推荐入口。
 # 目的：
 # - 固定 sample name 为 BRCA2；
-# - 默认走当前 scripts_format_R 新版 03/04 inferCNV 流水线；
+# - 默认走整合后的 6 模块流水线；
 # - 默认以 nohup 后台方式提交；
 # - 把运行日志和启动脚本集中写到 run_all_entry/nohup_logs。
 
@@ -19,10 +19,10 @@ RUN_LOG_DIR="${SCRIPT_DIR}/nohup_logs"
 mkdir -p "${RUN_LOG_DIR}"
 
 FROM_STEP="${FROM_STEP:-1}"
-TO_STEP="${TO_STEP:-11}"
+TO_STEP="${TO_STEP:-6}"
 BACKGROUND="${BACKGROUND:-1}"
 RESUME="${RESUME:-0}"
-KEEP_INTERMEDIATE="${KEEP_INTERMEDIATE:-0}"
+KEEP_INTERMEDIATE="${KEEP_INTERMEDIATE:-1}"
 LOW_LOAD="${LOW_LOAD:-1}"
 
 usage() {
@@ -43,7 +43,7 @@ Options:
 Examples:
   bash runall_BRCA2.sh
   bash runall_BRCA2.sh --foreground
-  bash runall_BRCA2.sh --from-step 3 --to-step 5 --resume
+  bash runall_BRCA2.sh --from-step 3 --to-step 6 --resume
 EOF
 }
 

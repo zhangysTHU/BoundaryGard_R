@@ -4,7 +4,7 @@ set -euo pipefail
 # CRC1 的当前推荐入口。
 # 目的：
 # - 固定 sample name 为 CRC1；
-# - 默认走当前 scripts_format_R 新版 03/04 inferCNV 流水线；
+# - 默认走整合后的 6 模块流水线；
 # - 支持前台直跑，也支持带 nohup/setsid 的后台提交；
 # - 把运行日志和启动脚本集中写到 run_all_entry/nohup_logs。
 
@@ -19,12 +19,11 @@ RUN_LOG_DIR="${SCRIPT_DIR}/nohup_logs"
 mkdir -p "${RUN_LOG_DIR}"
 
 FROM_STEP="${FROM_STEP:-1}"
-TO_STEP="${TO_STEP:-11}"
+TO_STEP="${TO_STEP:-6}"
 BACKGROUND="${BACKGROUND:-1}"
 RESUME="${RESUME:-0}"
 KEEP_INTERMEDIATE="${KEEP_INTERMEDIATE:-1}"
 LOW_LOAD="${LOW_LOAD:-1}"
-STEP11_SCRIPT="${STEP11_SCRIPT:-11b_lsgi_gradient.R}"
 
 usage() {
   cat <<'EOF'
@@ -43,7 +42,7 @@ Options:
 
 Examples:
   bash runall_CRC1.sh --foreground
-  bash runall_CRC1.sh --from-step 3 --to-step 5 --resume
+  bash runall_CRC1.sh --from-step 3 --to-step 6 --resume
 EOF
 }
 
@@ -83,7 +82,6 @@ export COTTRAZM_CONDA_ROOT="${MINIFORGE_ROOT}"
 export COTTRAZM_CONDA_ENV="${CONDA_ENV_NAME}"
 export COTTRAZM_PYTHON="${ENV_PREFIX}/bin/python"
 export COTTRAZM_RSCRIPT="${ENV_PREFIX}/bin/Rscript"
-export COTTRAZM_STEP11_SCRIPT="${STEP11_SCRIPT}"
 export LOW_LOAD
 
 if (( BACKGROUND == 1 )); then
@@ -100,7 +98,6 @@ export COTTRAZM_CONDA_ROOT="${MINIFORGE_ROOT}"
 export COTTRAZM_CONDA_ENV="${CONDA_ENV_NAME}"
 export COTTRAZM_PYTHON="${ENV_PREFIX}/bin/python"
 export COTTRAZM_RSCRIPT="${ENV_PREFIX}/bin/Rscript"
-export COTTRAZM_STEP11_SCRIPT="${STEP11_SCRIPT}"
 export LOW_LOAD="${LOW_LOAD}"
 exec "${ROOT_RUNNER}" --sample-name "${SAMPLE_NAME}" --from-step "${FROM_STEP}" --to-step "${TO_STEP}" --temp-dir "${TEMP_DIR}"$( (( RESUME == 1 )) && printf ' --resume' )$( (( KEEP_INTERMEDIATE == 1 )) && printf ' --keep-intermediate' )$( (( LOW_LOAD == 0 )) && printf ' --normal-load' )
 EOF

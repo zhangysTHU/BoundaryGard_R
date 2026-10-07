@@ -14,12 +14,22 @@ matrix_dir <- file.path(paths$spaceranger, "filtered_feature_bc_matrix")
 h5_file <- file.path(paths$spaceranger, "filtered_feature_bc_matrix.h5")
 spatial_dir <- file.path(paths$spaceranger, "spatial")
 
-if (dir.exists(matrix_dir)) {
-  xdata <- Seurat::Read10X(data.dir = matrix_dir)
-} else if (file.exists(h5_file)) {
+if (file.exists(h5_file)) {
   xdata <- Seurat::Read10X_h5(filename = h5_file)
+} else if (dir.exists(matrix_dir)) {
+  xdata <- Seurat::Read10X(data.dir = matrix_dir)
 } else {
   stop("No Space Ranger expression matrix found under input/spaceranger_outs.", call. = FALSE)
+}
+
+# FFPE/targeted Space Ranger files can contain Gene Expression and antibody
+# modalities.  CreateSeuratObject(list) turns these into multiple v5 layers,
+# which later makes GetAssayData(layer = "counts") ambiguous.  BoundaryGrad
+# only uses transcript counts, so select that matrix explicitly.
+if (is.list(xdata)) {
+  expression_name <- if ("Gene Expression" %in% names(xdata)) "Gene Expression" else names(xdata)[[1]]
+  message("Using expression modality: ", expression_name)
+  xdata <- xdata[[expression_name]]
 }
 
 # 构建 Seurat 对象，并把 H&E 图像对象挂到 image slot，供 SpatialDimPlot/SpatialFeaturePlot 使用。
@@ -31,6 +41,7 @@ TumorST[["image"]] <- Ximage
 
 # 线粒体比例是空间/单细胞 QC 常用指标，后续不直接过滤，但用于人工检查样本质量。
 TumorST[["Mito.percent"]] <- Seurat::PercentageFeatureSet(TumorST, pattern = "^MT-")
+TumorST@meta.data$Mito.percent[!is.finite(TumorST@meta.data$Mito.percent)] <- 0
 
 pdf(file.path(out_dir, "QC", "Vlnplot.pdf"), width = 6, height = 4)
 p <- Seurat::VlnPlot(TumorST, features = c("nFeature_Spatial", "nCount_Spatial", "Mito.percent"), pt.size = 0, combine = FALSE)
