@@ -5,6 +5,7 @@ script_dir <- if (length(script_file_arg) > 0) dirname(normalizePath(sub("^--fil
 options(scipen = 100)
 source(file.path(script_dir, "00_config.R"))
 source(file.path(script_dir, "R", "cottrazm_boundary_core.R"))
+source(file.path(script_dir, "R", "visium_hex_neighbors.R"))
 source(file.path(script_dir, "R", "spatial_plot_core.R"))
 load_required_packages(c("Seurat", "infercnv", "readr", "ape", "dendextend", "ggplot2", "ggpubr", "magrittr", "dplyr", "purrr", "tibble", "assertthat", "png", "grid", "jsonlite", "patchwork"))
 
@@ -61,27 +62,6 @@ load_spaceranger_positions <- function(spaceranger_dir, cells) {
     stop("Missing spaceranger coordinates for ", length(missing_cells), " cells; first missing: ", missing_cells[[1]], call. = FALSE)
   }
   pos
-}
-
-compute_interspot_distances <- function(position, scale.factor = 1.05) {
-  # 用阵列 row/col 与图像像素 imagerow/imagecol 的线性关系估计相邻 spot 半径。
-  cols <- c("row", "col", "imagerow", "imagecol")
-  assertthat::assert_that(all(cols %in% colnames(position)))
-  list(
-    xdist = coef(lm(position$imagecol ~ position$col))[2],
-    ydist = coef(lm(position$imagerow ~ position$row))[2]
-  ) |>
-    within(radius <- (abs(xdist) + abs(ydist)) * scale.factor)
-}
-
-find_neighbors <- function(position, radius, method = c("manhattan", "euclidean")) {
-  # 根据像素坐标计算所有 spot 的邻居表；返回 named list，名字是 spot barcode。
-  method <- match.arg(method)
-  pdist <- as.matrix(stats::dist(as.matrix(position[, c("imagecol", "imagerow")]), method = method))
-  neighbors <- (pdist <= radius & pdist > 0)
-  df_j2 <- sapply(seq_len(nrow(position)), function(x) as.vector(names(neighbors[x, ])[which(neighbors[x, ])]))
-  names(df_j2) <- rownames(position)
-  df_j2
 }
 
 ClusterUpdate <- function(MalCellIDN, position, df_j, UMAPembeddings, NormalCellID, BdyCellID, MalCellID, x,
@@ -479,8 +459,11 @@ UMAPembeddings <- as.data.frame(TumorST@reductions$umap@cell.embeddings)
 colnames(UMAPembeddings) <- c("x", "y")
 position <- load_spaceranger_positions(paths$spaceranger, rownames(TumorST@meta.data))
 position$spot.ids <- seq_len(nrow(position))
-dists <- compute_interspot_distances(position = position, scale.factor = 1.05)
-df_j <- find_neighbors(position = position, radius = dists$radius, method = "manhattan")
+df_j <- vh_build_neighbors(position)
+spatial_neighbor_qc <- vh_neighbor_qc(df_j)
+vh_assert_neighbor_qc(spatial_neighbor_qc)
+readr::write_tsv(spatial_neighbor_qc, file.path(out_dir, "neighbor_qc.tsv"))
+readr::write_tsv(spatial_neighbor_qc, file.path(intermediate_out_dir, "neighbor_qc.tsv"))
 
 plot_context <- sp_read_context(paths$spaceranger, load_image = TRUE)
 scale_factor <- plot_context$tissue_lowres_scalef
@@ -519,28 +502,97 @@ core_role <- if ("infercnv_role" %in% colnames(TumorST@meta.data)) {
 } else {
   rep("Observation", nrow(TumorST@meta.data))
 }
-boundary_core <- ct_define_boundary(
-  spot_ids = rownames(TumorST@meta.data),
-  cnv_label = TumorST@meta.data$CNVLabel,
-  cnv_score = TumorST@meta.data$cnv_score,
-  infercnv_role = core_role,
-  cluster = TumorST@meta.data$seurat_clusters,
-  normal_score = TumorST@meta.data$NormalScore,
-  embedding = as.matrix(UMAPembeddings[, c("x", "y"), drop = FALSE]),
-  neighbors = df_j,
-  malignant_labels = configured_malignant_labels,
+boundary_attempts <- data.frame(
   malignant_label_n = 2L,
   malignant_cluster_fraction = boundary_mal_cluster_fraction,
   umap_malignant_ratio = boundary_umap_mal_ratio,
-  expand_malignant_radius = boundary_expand_mal_radius,
-  maximum_rounds = boundary_max_rounds
+  stringsAsFactors = FALSE
 )
+if (is.null(configured_malignant_labels)) {
+  fallback_attempts <- expand.grid(
+    malignant_label_n = c(2L, 1L),
+    malignant_cluster_fraction = c(0.30, 0.20, 0.10, 0.05),
+    umap_malignant_ratio = c(0.50, 0.40, 0.30, 0.70, 1.00),
+    KEEP.OUT.ATTRS = FALSE,
+    stringsAsFactors = FALSE
+  )
+  fallback_attempts$priority <-
+    ifelse(fallback_attempts$malignant_label_n == 2L, 0, 10) +
+    abs(fallback_attempts$malignant_cluster_fraction - boundary_mal_cluster_fraction) * 10 +
+    abs(fallback_attempts$umap_malignant_ratio - boundary_umap_mal_ratio)
+  fallback_attempts <- fallback_attempts[
+    order(fallback_attempts$priority, seq_len(nrow(fallback_attempts))),
+    c("malignant_label_n", "malignant_cluster_fraction", "umap_malignant_ratio"),
+    drop = FALSE
+  ]
+  boundary_attempts <- unique(rbind(boundary_attempts, fallback_attempts))
+}
+boundary_attempts$attempt_id <- sprintf("attempt_%02d", seq_len(nrow(boundary_attempts)))
+
+boundary_core <- NULL
+selected_boundary_attempt <- NULL
+boundary_attempt_log <- data.frame(
+  attempt_id = character(), malignant_label_n = integer(),
+  malignant_cluster_fraction = numeric(), umap_malignant_ratio = numeric(),
+  status = character(), detail = character(), stringsAsFactors = FALSE
+)
+for (attempt_index in seq_len(nrow(boundary_attempts))) {
+  attempt <- boundary_attempts[attempt_index, , drop = FALSE]
+  result <- tryCatch(
+    ct_define_boundary(
+      spot_ids = rownames(TumorST@meta.data),
+      cnv_label = TumorST@meta.data$CNVLabel,
+      cnv_score = TumorST@meta.data$cnv_score,
+      infercnv_role = core_role,
+      cluster = TumorST@meta.data$seurat_clusters,
+      normal_score = TumorST@meta.data$NormalScore,
+      embedding = as.matrix(UMAPembeddings[, c("x", "y"), drop = FALSE]),
+      neighbors = df_j,
+      malignant_labels = configured_malignant_labels,
+      malignant_label_n = attempt$malignant_label_n,
+      malignant_cluster_fraction = attempt$malignant_cluster_fraction,
+      umap_malignant_ratio = attempt$umap_malignant_ratio,
+      expand_malignant_radius = boundary_expand_mal_radius,
+      maximum_rounds = boundary_max_rounds
+    ),
+    error = function(error) error
+  )
+  succeeded <- !inherits(result, "error")
+  boundary_attempt_log <- rbind(
+    boundary_attempt_log,
+    data.frame(
+      attempt_id = attempt$attempt_id,
+      malignant_label_n = attempt$malignant_label_n,
+      malignant_cluster_fraction = attempt$malignant_cluster_fraction,
+      umap_malignant_ratio = attempt$umap_malignant_ratio,
+      status = if (succeeded) "selected" else "failed",
+      detail = if (succeeded) "" else conditionMessage(result),
+      stringsAsFactors = FALSE
+    )
+  )
+  if (succeeded) {
+    boundary_core <- result
+    selected_boundary_attempt <- attempt
+    break
+  }
+}
+readr::write_tsv(boundary_attempt_log, file.path(out_dir, "parameter_attempts.tsv"))
+readr::write_tsv(boundary_attempt_log, file.path(intermediate_out_dir, "parameter_attempts.tsv"))
+if (is.null(boundary_core)) {
+  stop(
+    "Cottrazm boundary definition failed for all ", nrow(boundary_attempts),
+    " parameter attempts; see ", file.path(out_dir, "parameter_attempts.tsv"),
+    call. = FALSE
+  )
+}
 MalLabel <- boundary_core$selected_malignant_labels
 
 boundary_params <- data.frame(
   parameter = c(
     "sample_name",
     "boundary_run_id",
+    "neighbor_method",
+    "boundary_parameter_attempt",
     "boundary_malignant_cnv_labels",
     "boundary_mal_cluster_fraction",
     "boundary_umap_mal_ratio",
@@ -550,9 +602,11 @@ boundary_params <- data.frame(
   value = c(
     sample_name,
     if (nzchar(boundary_run_id)) boundary_run_id else "legacy",
+    "visium_array_hex_6_neighbor",
+    selected_boundary_attempt$attempt_id,
     paste(MalLabel, collapse = ","),
-    as.character(boundary_mal_cluster_fraction),
-    as.character(boundary_umap_mal_ratio),
+    as.character(selected_boundary_attempt$malignant_cluster_fraction),
+    as.character(selected_boundary_attempt$umap_malignant_ratio),
     as.character(boundary_expand_mal_radius),
     as.character(boundary_max_rounds)
   )

@@ -149,30 +149,11 @@ plot_mode <- bg_validate_plot_mode(get_opt(cli_opts, "plot-mode", default = para
 out_dir <- file.path(paths$output, "11_lsgi_gradient")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-lsgi_source_override <- Sys.getenv("LSGI_SOURCE_DIR", unset = "")
-lsgi_root_candidates <- c(
-  if (nzchar(lsgi_source_override)) lsgi_source_override else character(),
-  file.path(script_dir, "..", "LSGI-master"),
-  file.path(script_dir, "..", "Cottrazm-main", "LSGI-master"),
-  file.path(script_dir, "..", "Cottrazm-main-archived", "LSGI-master"),
-  file.path(script_dir, "..", "Cottrazm-main-archived", "LSGI_original_work")
-)
-lsgi_root <- NULL
-for (candidate in lsgi_root_candidates) {
-  candidate_norm <- normalizePath(candidate, winslash = "/", mustWork = FALSE)
-  if (dir.exists(candidate_norm) && file.exists(file.path(candidate_norm, "R", "LSGI.R"))) {
-    lsgi_root <- candidate_norm
-    break
-  }
+lsgi_source_dir <- normalizePath(file.path(script_dir, "R"), winslash = "/", mustWork = FALSE)
+lsgi_script <- file.path(lsgi_source_dir, "LSGI.R")
+if (!file.exists(lsgi_script)) {
+  stop("Bundled LSGI source file is missing: ", lsgi_script, call. = FALSE)
 }
-if (is.null(lsgi_root)) {
-  stop(
-    "Cannot find LSGI source directory. Tried: ",
-    paste(normalizePath(lsgi_root_candidates, winslash = "/", mustWork = FALSE), collapse = ", "),
-    call. = FALSE
-  )
-}
-lsgi_script <- file.path(lsgi_root, "R", "LSGI.R")
 
 if (requireNamespace("anticlust", quietly = TRUE)) {
   suppressPackageStartupMessages(library(anticlust))

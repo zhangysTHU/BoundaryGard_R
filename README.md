@@ -32,8 +32,8 @@
 配置根目录下的样本子目录，避免删除到共享或 canonical 根目录。
 
 脚本 04–06 支持 `COTTRAZM_PLOT_MODE=none|summary|full`；`none` 仍写出全部
-结构化数值表，但不生成 PDF，适合 benchmark/CI。04 也接受
-`LSGI_SOURCE_DIR` 指向含 `R/LSGI.R` 的固定源码目录。可复用的无绘图核心函数位于
+结构化数值表，但不生成 PDF，适合 benchmark/CI。04 固定读取流水线内置的
+`R/LSGI.R`，不再搜索外部 LSGI 目录或接受路径覆盖。可复用的无绘图核心函数位于
 `R/boundarygrad_core.R`，接口版本记录在 `boundarygrad_core_api_version`；04–06 与
 benchmark adapter 共同调用这些函数。
 
